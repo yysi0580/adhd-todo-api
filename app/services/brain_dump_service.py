@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session as DbSession
 
+from app.core.exceptions import not_found
 from app.models import BrainDump, Session, Suggestion
 from app.repositories.brain_dump_repository import BrainDumpRepository
 from app.repositories.session_repository import SessionRepository
@@ -40,7 +41,5 @@ class BrainDumpService:
 
         session = self.sessions.get(session_id)
         if session is None:
-            from fastapi import HTTPException
-
-            raise HTTPException(status_code=404, detail="Session not found")
+            raise not_found("Session not found")
         return session

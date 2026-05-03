@@ -1,6 +1,6 @@
-from fastapi import HTTPException
 from sqlalchemy.orm import Session as DbSession
 
+from app.core.exceptions import not_found
 from app.models import Suggestion
 from app.repositories.suggestion_repository import SuggestionRepository
 from app.services.common import require_session
@@ -20,7 +20,7 @@ class SuggestionService:
     def make_smaller(self, suggestion_id: int) -> Suggestion:
         suggestion = self.suggestions.get(suggestion_id)
         if suggestion is None:
-            raise HTTPException(status_code=404, detail="Suggestion not found")
+            raise not_found("Suggestion not found")
 
         smaller = self.generator.generate_smaller_step(suggestion.micro_step)
         new_suggestion = self.suggestions.create(

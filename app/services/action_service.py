@@ -1,6 +1,6 @@
-from fastapi import HTTPException
 from sqlalchemy.orm import Session as DbSession
 
+from app.core.exceptions import bad_request, not_found
 from app.domain.enums import ActionStatus
 from app.domain.time import utc_now
 from app.models import Action
@@ -25,20 +25,14 @@ class ActionService:
         require_session(self.db, session_id)
         suggestion = self.suggestions.get(suggestion_id) if suggestion_id else None
         if suggestion_id and suggestion is None:
-            raise HTTPException(status_code=404, detail="Suggestion not found")
+            raise not_found("Suggestion not found")
         if suggestion and suggestion.session_id != session_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Suggestion does not belong to this session",
-            )
+            raise bad_request("Suggestion does not belong to this session")
 
         resolved_title = title or (suggestion.title if suggestion else None)
         resolved_micro_step = micro_step or (suggestion.micro_step if suggestion else None)
         if not resolved_title or not resolved_micro_step:
-            raise HTTPException(
-                status_code=400,
-                detail="title and micro_step are required without suggestion_id",
-            )
+            raise bad_request("title and micro_step are required without suggestion_id")
 
         action = self.actions.create(
             session_id=session_id,
@@ -53,7 +47,7 @@ class ActionService:
     def set_status(self, action_id: int, status: ActionStatus | str) -> Action:
         action = self.actions.get(action_id)
         if action is None:
-            raise HTTPException(status_code=404, detail="Action not found")
+            raise not_found("Action not found")
 
         action.status = status.value if isinstance(status, ActionStatus) else status
         action.updated_at = utc_now()

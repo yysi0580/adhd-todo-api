@@ -1,6 +1,6 @@
-from fastapi import HTTPException
 from sqlalchemy.orm import Session as DbSession
 
+from app.core.exceptions import bad_request, not_found
 from app.models import Feedback
 from app.repositories.action_repository import ActionRepository
 from app.repositories.feedback_repository import FeedbackRepository
@@ -25,10 +25,7 @@ class FeedbackService:
     ) -> Feedback:
         require_session(self.db, session_id)
         if suggestion_id is None and action_id is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Either suggestion_id or action_id is required",
-            )
+            raise bad_request("Either suggestion_id or action_id is required")
 
         self._validate_suggestion(session_id, suggestion_id)
         self._validate_action(session_id, action_id)
@@ -50,12 +47,9 @@ class FeedbackService:
 
         suggestion = self.suggestions.get(suggestion_id)
         if suggestion is None:
-            raise HTTPException(status_code=404, detail="Suggestion not found")
+            raise not_found("Suggestion not found")
         if suggestion.session_id != session_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Suggestion does not belong to this session",
-            )
+            raise bad_request("Suggestion does not belong to this session")
 
     def _validate_action(self, session_id: int, action_id: int | None) -> None:
         if action_id is None:
@@ -63,9 +57,6 @@ class FeedbackService:
 
         action = self.actions.get(action_id)
         if action is None:
-            raise HTTPException(status_code=404, detail="Action not found")
+            raise not_found("Action not found")
         if action.session_id != session_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Action does not belong to this session",
-            )
+            raise bad_request("Action does not belong to this session")
