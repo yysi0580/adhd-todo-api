@@ -17,19 +17,17 @@ class SuggestionService:
         require_session(self.db, session_id)
         return self.suggestions.list_by_session(session_id)
 
-    def make_smaller(self, suggestion_id: int) -> Suggestion:
+    def make_smaller(self, suggestion_id: int) -> list[Suggestion]:
         suggestion = self.suggestions.get(suggestion_id)
         if suggestion is None:
             raise not_found("Suggestion not found")
 
-        smaller = self.generator.generate_smaller_step(suggestion.micro_step)
-        new_suggestion = self.suggestions.create(
+        new_suggestions = self.suggestions.create_many(
             session_id=suggestion.session_id,
             brain_dump_id=suggestion.brain_dump_id,
-            title=smaller["title"],
-            micro_step=smaller["micro_step"],
-            effort_level=smaller["effort_level"],
+            items=self.generator.generate_smaller_steps(suggestion.micro_step),
         )
         self.db.commit()
-        self.db.refresh(new_suggestion)
-        return new_suggestion
+        for new_suggestion in new_suggestions:
+            self.db.refresh(new_suggestion)
+        return new_suggestions

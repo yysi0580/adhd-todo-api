@@ -1,9 +1,15 @@
-from fastapi import HTTPException
+from dataclasses import dataclass
 
 
-def not_found(message: str) -> HTTPException:
-    return HTTPException(status_code=404, detail=message)
+@dataclass
+class AppError(Exception):
+    message: str
+    status_code: int = 400
 
 
-def bad_request(message: str) -> HTTPException:
-    return HTTPException(status_code=400, detail=message)
+def not_found(message: str) -> AppError:
+    return AppError(message=message, status_code=404)
+
+
+def bad_request(message: str) -> AppError:
+    return AppError(message=message, status_code=400)

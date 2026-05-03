@@ -18,15 +18,12 @@ class FeedbackService:
     def create(
         self,
         session_id: int,
-        suggestion_id: int | None,
+        suggestion_id: int,
         action_id: int | None,
         reaction: str,
         note: str | None,
     ) -> Feedback:
         require_session(self.db, session_id)
-        if suggestion_id is None and action_id is None:
-            raise bad_request("Either suggestion_id or action_id is required")
-
         self._validate_suggestion(session_id, suggestion_id)
         self._validate_action(session_id, action_id)
 
@@ -41,10 +38,7 @@ class FeedbackService:
         self.db.refresh(feedback)
         return feedback
 
-    def _validate_suggestion(self, session_id: int, suggestion_id: int | None) -> None:
-        if suggestion_id is None:
-            return
-
+    def _validate_suggestion(self, session_id: int, suggestion_id: int) -> None:
         suggestion = self.suggestions.get(suggestion_id)
         if suggestion is None:
             raise not_found("Suggestion not found")

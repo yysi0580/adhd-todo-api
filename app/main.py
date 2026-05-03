@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.db import init_db
+from app.core.exceptions import AppError
 
 settings = get_settings()
 
@@ -22,6 +23,11 @@ app = FastAPI(
     description="ADHD-focused todo API that turns brain dumps into selectable micro-actions.",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(AppError)
+def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

@@ -45,11 +45,31 @@ class ActionService:
         return action
 
     def set_status(self, action_id: int, status: ActionStatus | str) -> Action:
+        normalized_status = status.value if isinstance(status, ActionStatus) else status
+        return self._finalize(action_id, normalized_status)
+
+    def complete(self, action_id: int, note: str | None = None) -> Action:
+        action = self._finalize(action_id, ActionStatus.completed.value)
+        action.completion_note = note
+        self.db.commit()
+        self.db.refresh(action)
+        return action
+
+    def abort(self, action_id: int, reason: str | None = None) -> Action:
+        action = self._finalize(action_id, ActionStatus.aborted.value)
+        action.abort_reason = reason
+        self.db.commit()
+        self.db.refresh(action)
+        return action
+
+    def _finalize(self, action_id: int, status: str) -> Action:
         action = self.actions.get(action_id)
         if action is None:
             raise not_found("Action not found")
+        if action.status in {ActionStatus.completed.value, ActionStatus.aborted.value}:
+            raise bad_request("Action is already finished")
 
-        action.status = status.value if isinstance(status, ActionStatus) else status
+        action.status = status
         action.updated_at = utc_now()
         self.db.commit()
         self.db.refresh(action)
