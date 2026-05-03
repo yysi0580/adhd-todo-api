@@ -1,16 +1,15 @@
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel
 
-FeedbackReaction = Literal["do", "snooze", "pass", "make_smaller", "capture_only"]
+from app.domain.enums import FeedbackType
 
 
 class FeedbackCreate(BaseModel):
     session_id: int
-    suggestion_id: int | None = None
+    suggestion_id: int
     action_id: int | None = None
-    reaction: FeedbackReaction
+    reaction: FeedbackType
     note: str | None = None
 
 

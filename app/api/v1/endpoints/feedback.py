@@ -14,6 +14,6 @@ def create_feedback(payload: FeedbackCreate, db: DbSession = Depends(get_db)):
         session_id=payload.session_id,
         suggestion_id=payload.suggestion_id,
         action_id=payload.action_id,
-        reaction=payload.reaction,
+        reaction=payload.reaction.value,
         note=payload.note,
     )
