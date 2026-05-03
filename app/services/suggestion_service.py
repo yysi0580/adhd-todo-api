@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session as DbSession
 
 from app.models import Suggestion
-from app.repositories.suggestion_repo import SuggestionRepository
+from app.repositories.suggestion_repository import SuggestionRepository
 from app.services.common import require_session
 from app.services.suggestion.generator import SuggestionGenerator
 

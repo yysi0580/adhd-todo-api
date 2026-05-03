@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session as DbSession
 from app.domain.enums import ActionStatus
 from app.domain.time import utc_now
 from app.models import Action
-from app.repositories.action_repo import ActionRepository
-from app.repositories.suggestion_repo import SuggestionRepository
+from app.repositories.action_repository import ActionRepository
+from app.repositories.suggestion_repository import SuggestionRepository
 from app.services.common import require_session
 
 

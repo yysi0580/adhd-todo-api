@@ -2,9 +2,9 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session as DbSession
 
 from app.models import Feedback
-from app.repositories.action_repo import ActionRepository
-from app.repositories.feedback_repo import FeedbackRepository
-from app.repositories.suggestion_repo import SuggestionRepository
+from app.repositories.action_repository import ActionRepository
+from app.repositories.feedback_repository import FeedbackRepository
+from app.repositories.suggestion_repository import SuggestionRepository
 from app.services.common import require_session
 
 

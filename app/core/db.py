@@ -28,6 +28,6 @@ def init_db() -> None:
     if not settings.auto_create_tables:
         return
 
-    from app.models import domain  # noqa: F401
+    import app.models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)

@@ -1,7 +1,8 @@
 from typing import Protocol
 
-from app.services.suggestion.micro_step_builder import build_micro_step, build_smaller_step
+from app.services.suggestion.micro_step_builder import build_micro_step
 from app.services.suggestion.safety_net import SAFETY_NET_ACTIONS
+from app.services.suggestion.smaller import build_smaller_step
 from app.services.suggestion.splitter import split_brain_dump
 
 

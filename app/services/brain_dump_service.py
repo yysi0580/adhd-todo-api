@@ -1,9 +1,9 @@
 from sqlalchemy.orm import Session as DbSession
 
 from app.models import BrainDump, Session, Suggestion
-from app.repositories.brain_dump_repo import BrainDumpRepository
-from app.repositories.session_repo import SessionRepository
-from app.repositories.suggestion_repo import SuggestionRepository
+from app.repositories.brain_dump_repository import BrainDumpRepository
+from app.repositories.session_repository import SessionRepository
+from app.repositories.suggestion_repository import SuggestionRepository
 from app.services.suggestion.generator import SuggestionGenerator
 
 

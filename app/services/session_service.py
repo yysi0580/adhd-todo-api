@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session as DbSession
 
 from app.models import Session
-from app.repositories.session_repo import SessionRepository
+from app.repositories.session_repository import SessionRepository
 
 
 class SessionService:

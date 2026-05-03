@@ -39,6 +39,7 @@ app/
   core/
     config.py                # 환경변수 설정
     db.py                    # SQLAlchemy engine/session
+    exceptions.py            # 공통 HTTP 예외 helper
   domain/
     enums.py                 # 상태/반응 enum
     time.py                  # 공통 시간 함수
@@ -49,12 +50,18 @@ app/
     action.py
     feedback.py
   schemas/                   # Pydantic 요청/응답 스키마
+    common.py
     session.py
     brain_dump.py
     suggestion.py
     action.py
     feedback.py
   repositories/              # DB 접근만 담당
+    session_repository.py
+    brain_dump_repository.py
+    suggestion_repository.py
+    action_repository.py
+    feedback_repository.py
   services/                  # 비즈니스 흐름 담당
     brain_dump_service.py
     suggestion_service.py
@@ -64,6 +71,7 @@ app/
       splitter.py
       micro_step_builder.py
       safety_net.py
+      smaller.py
       generator.py
 ```
 
@@ -73,6 +81,7 @@ app/
 - Brain Dump 생성 흐름 수정: `app/services/brain_dump_service.py`
 - 문장 분해 규칙 수정: `app/services/suggestion/splitter.py`
 - 제안 문구 수정: `app/services/suggestion/micro_step_builder.py`
+- 더 작은 단계 생성 수정: `app/services/suggestion/smaller.py`
 - 안전망 행동 수정: `app/services/suggestion/safety_net.py`
 - DB 쿼리 수정: `app/repositories/`
 - 테이블 구조 수정: `app/models/` + `alembic/versions/`
