@@ -2,7 +2,16 @@
 
 ADHD 사용자를 위한 투두앱 백엔드 MVP입니다.
 
-핵심 방향은 일반적인 할 일 목록 관리가 아니라, 무질서한 입력을 받아 지금 선택할 수 있는 작은 행동 후보를 제시하는 것입니다.
+이 앱은 "할 일 목록을 관리하는 앱"이 아니라, 사용자의 결정 부담을 줄이고 실행 가능한 작은 행동 후보를 제시하는 앱입니다. 사용자는 생각을 정리해서 입력하지 않아도 되고, 시스템이 여러 micro-step suggestion으로 분해한 뒤 그중 하나를 선택해 Action으로 실행합니다.
+
+핵심 원칙:
+
+- 처음부터 행동 1개만 강제하지 않고 여러 suggestion을 제시합니다.
+- 입력은 한 줄 또는 장문 모두 허용합니다.
+- 장문 입력은 2~5개의 micro-step suggestion으로 자동 분해합니다.
+- 사용자는 suggestion 중 하나를 선택하거나, 전부 패스하거나, 더 작게 만들기를 요청할 수 있습니다.
+- 실행은 suggestion 선택 후 하나의 Action으로 수렴합니다.
+- completed/aborted는 압박용 성공/실패가 아니라 다음 제안을 조절하기 위한 패턴 데이터입니다.
 
 ## 기술 스택
 
@@ -17,9 +26,18 @@ ADHD 사용자를 위한 투두앱 백엔드 MVP입니다.
 
 현재 제안 생성은 AI가 아니라 `RuleBasedSuggestionService` 기반입니다.
 
-- 쉼표, 줄바꿈, "그리고", "해야 함" 같은 표현을 기준으로 입력을 나눕니다.
+- 쉼표, 줄바꿈, 마침표, "그리고", "해야 하고", "또", "먼저" 같은 표현을 기준으로 입력을 나눕니다.
 - 메일/문서/공유 같은 키워드에 따라 2~5분짜리 micro-step을 만듭니다.
 - 추후 LLM 기반 구현은 같은 `SuggestionService` 인터페이스를 구현해서 교체하면 됩니다.
+
+핵심 기능:
+
+- Brain Dump: 사용자가 생각을 정리하지 않고 그대로 입력합니다.
+- 자동 분해: 장문 입력을 여러 micro-step으로 분해합니다.
+- 다중 제시: 처음부터 여러 개의 행동 후보를 제시합니다.
+- 선택 기반 실행: 여러 후보 중 하나를 선택하면 Action으로 전환합니다.
+- 평가 없는 반응: 실패/성공 압박 없이 reaction만 저장합니다.
+- make_smaller: 부담스러운 제안을 1~3개의 더 작은 행동으로 재생성합니다.
 
 ## 코드 구조
 
@@ -79,6 +97,8 @@ app/
 
 - API 경로/HTTP 응답 수정: `app/api/v1/endpoints/`
 - Brain Dump 생성 흐름 수정: `app/services/brain_dump_service.py`
+- Action 상태 변경 수정: `app/services/action_service.py`
+- Feedback 저장 수정: `app/services/feedback_service.py`
 - 문장 분해 규칙 수정: `app/services/suggestion/splitter.py`
 - 제안 문구 수정: `app/services/suggestion/micro_step_builder.py`
 - 더 작은 단계 생성 수정: `app/services/suggestion/smaller.py`
@@ -129,6 +149,40 @@ Content-Type: application/json
 ```
 
 응답은 새 세션, Brain Dump, 2~5개의 행동 제안을 함께 반환합니다.
+
+make_smaller 예시:
+
+```http
+POST /api/v1/suggestions/{suggestion_id}/make-smaller
+```
+
+응답은 1~3개의 더 작은 suggestion 배열입니다.
+
+Action 완료/중단 예시:
+
+```http
+POST /api/v1/actions/{action_id}/complete
+Content-Type: application/json
+
+{
+  "note": "부담 없이 완료"
+}
+```
+
+```http
+POST /api/v1/actions/{action_id}/abort
+Content-Type: application/json
+
+{
+  "reason": "지금은 너무 크게 느껴짐"
+}
+```
+
+Feedback reaction:
+
+```text
+do | snooze | pass | make_smaller | capture_only
+```
 
 ## 배포 방식
 
