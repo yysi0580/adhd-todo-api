@@ -21,6 +21,14 @@ class ActionUpdate(BaseModel):
     status: ActionStatus
 
 
+class ActionComplete(BaseModel):
+    note: str | None = None
+
+
+class ActionAbort(BaseModel):
+    reason: str | None = None
+
+
 class ActionRead(BaseModel):
     id: int
     session_id: int
@@ -28,6 +36,8 @@ class ActionRead(BaseModel):
     title: str
     micro_step: str
     status: str
+    completion_note: str | None
+    abort_reason: str | None
     created_at: datetime
     updated_at: datetime
 

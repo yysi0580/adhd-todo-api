@@ -18,6 +18,8 @@ class Action(Base):
     title: Mapped[str] = mapped_column(String(160))
     micro_step: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default=ActionStatus.active.value)
+    completion_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    abort_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 

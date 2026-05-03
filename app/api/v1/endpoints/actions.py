@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session as DbSession
 
 from app.core.db import get_db
-from app.domain.enums import ActionStatus
-from app.schemas.action import ActionCreate, ActionRead, ActionUpdate
+from app.schemas.action import ActionAbort, ActionComplete, ActionCreate, ActionRead, ActionUpdate
 from app.services.action_service import ActionService
 
 router = APIRouter()
@@ -25,10 +24,20 @@ def update_action(action_id: int, payload: ActionUpdate, db: DbSession = Depends
 
 
 @router.post("/{action_id}/complete", response_model=ActionRead)
-def complete_action(action_id: int, db: DbSession = Depends(get_db)):
-    return ActionService(db).set_status(action_id, ActionStatus.completed)
+def complete_action(
+    action_id: int,
+    payload: ActionComplete | None = None,
+    db: DbSession = Depends(get_db),
+):
+    note = payload.note if payload else None
+    return ActionService(db).complete(action_id, note=note)
 
 
 @router.post("/{action_id}/abort", response_model=ActionRead)
-def abort_action(action_id: int, db: DbSession = Depends(get_db)):
-    return ActionService(db).set_status(action_id, ActionStatus.aborted)
+def abort_action(
+    action_id: int,
+    payload: ActionAbort | None = None,
+    db: DbSession = Depends(get_db),
+):
+    reason = payload.reason if payload else None
+    return ActionService(db).abort(action_id, reason=reason)
