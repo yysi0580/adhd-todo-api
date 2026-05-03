@@ -16,7 +16,7 @@ def list_suggestions(session_id: int, db: DbSession = Depends(get_db)):
 
 @router.post(
     "/suggestions/{suggestion_id}/make-smaller",
-    response_model=SuggestionRead,
+    response_model=list[SuggestionRead],
     status_code=201,
 )
 def make_suggestion_smaller(
