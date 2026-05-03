@@ -7,7 +7,6 @@ from app.api.routes import router
 from app.core.config import get_settings
 from app.core.db import init_db
 
-
 settings = get_settings()
 
 
@@ -29,7 +28,9 @@ app = FastAPI(
 def api_home(request: Request) -> str:
     routes = []
     for route in request.app.routes:
-        methods = sorted(method for method in getattr(route, "methods", []) if method not in {"HEAD", "OPTIONS"})
+        methods = sorted(
+            method for method in getattr(route, "methods", []) if method not in {"HEAD", "OPTIONS"}
+        )
         path = getattr(route, "path", "")
         if not methods or not path:
             continue
@@ -43,15 +44,7 @@ def api_home(request: Request) -> str:
         )
 
     route_rows = "\n".join(
-        f"""
-        <tr>
-          <td>{" ".join(f'<span class="method {method.lower()}">{method}</span>' for method in route["methods"])}</td>
-          <td><code>{route["path"]}</code></td>
-          <td>{route["name"]}</td>
-          <td>{'yes' if route["include_in_schema"] else 'no'}</td>
-        </tr>
-        """
-        for route in sorted(routes, key=lambda item: item["path"])
+        _route_row(route) for route in sorted(routes, key=lambda item: item["path"])
     )
 
     return f"""
@@ -201,3 +194,18 @@ def api_home(request: Request) -> str:
 
 
 app.include_router(router, prefix="/api/v1")
+
+
+def _route_row(route: dict) -> str:
+    method_badges = " ".join(
+        f'<span class="method {method.lower()}">{method}</span>' for method in route["methods"]
+    )
+    in_openapi = "yes" if route["include_in_schema"] else "no"
+    return f"""
+        <tr>
+          <td>{method_badges}</td>
+          <td><code>{route["path"]}</code></td>
+          <td>{route["name"]}</td>
+          <td>{in_openapi}</td>
+        </tr>
+        """

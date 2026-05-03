@@ -9,8 +9,17 @@ ADHD 사용자를 위한 투두앱 백엔드 MVP입니다.
 - Python
 - FastAPI
 - SQLAlchemy
-- SQLite 기본값
+- SQLite 기본값, PostgreSQL 운영 권장
+- Alembic 마이그레이션
 - Docker 배포 가능
+
+## 현재 구현 범위
+
+현재 제안 생성은 AI가 아니라 `RuleBasedSuggestionService` 기반입니다.
+
+- 쉼표, 줄바꿈, "그리고", "해야 함" 같은 표현을 기준으로 입력을 나눕니다.
+- 메일/문서/공유 같은 키워드에 따라 2~5분짜리 micro-step을 만듭니다.
+- 추후 LLM 기반 구현은 같은 `SuggestionService` 인터페이스를 구현해서 교체하면 됩니다.
 
 ## 로컬 실행
 
@@ -38,6 +47,8 @@ GET /api/v1/sessions/{session_id}/suggestions
 POST /api/v1/suggestions/{suggestion_id}/make-smaller
 POST /api/v1/actions
 PATCH /api/v1/actions/{action_id}
+POST /api/v1/actions/{action_id}/complete
+POST /api/v1/actions/{action_id}/abort
 POST /api/v1/feedback
 ```
 
@@ -64,6 +75,21 @@ Content-Type: application/json
 4. Health check path를 `/api/v1/health`로 둡니다.
 
 초기 MVP는 SQLite로 실행할 수 있지만, 실제 운영에서는 `DATABASE_URL`을 PostgreSQL로 바꾸는 것을 권장합니다.
+
+PostgreSQL 예시:
+
+```text
+DATABASE_URL=postgresql+psycopg://user:password@host:5432/adhd_todo
+AUTO_CREATE_TABLES=false
+```
+
+마이그레이션:
+
+```bash
+alembic upgrade head
+```
+
+로컬 SQLite에서 빠르게 확인할 때는 `AUTO_CREATE_TABLES=true`를 유지하면 앱 시작 시 테이블을 자동 생성합니다. 운영에서는 `AUTO_CREATE_TABLES=false`로 두고 Alembic을 사용하세요.
 
 ## yangtheory.site로 열기
 
@@ -104,7 +130,7 @@ https://yangtheory.site/docs
 ## 다음 개발 순서
 
 1. 사용자 인증 추가
-2. PostgreSQL 전환 및 마이그레이션 도입
-3. 제안 생성 로직을 LLM 서비스로 분리
+2. Render/Railway/Fly 배포 시 PostgreSQL 연결
+3. 제안 생성 로직을 LLM 서비스 구현체로 추가
 4. 세션별 반응 패턴 기반 난이도 조절
 5. 프론트엔드에서 Brain Dump 입력과 Suggestion 선택 UI 연결

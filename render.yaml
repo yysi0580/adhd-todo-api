@@ -8,4 +8,6 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: DATABASE_URL
-        value: sqlite:///./adhd_todo.db
+        sync: false
+      - key: AUTO_CREATE_TABLES
+        value: false

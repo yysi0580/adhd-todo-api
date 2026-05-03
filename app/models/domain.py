@@ -1,5 +1,5 @@
-from datetime import datetime
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,13 +7,17 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db import Base
 
 
-class ActionStatus(str, Enum):
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class ActionStatus(StrEnum):
     active = "active"
     completed = "completed"
     aborted = "aborted"
 
 
-class FeedbackType(str, Enum):
+class FeedbackType(StrEnum):
     do = "do"
     snooze = "snooze"
     pass_ = "pass"
@@ -26,7 +30,7 @@ class Session(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     context_note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     brain_dumps: Mapped[list["BrainDump"]] = relationship(back_populates="session")
     suggestions: Mapped[list["Suggestion"]] = relationship(back_populates="session")
@@ -40,7 +44,7 @@ class BrainDump(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
     raw_text: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     session: Mapped[Session] = relationship(back_populates="brain_dumps")
 
@@ -50,11 +54,14 @@ class Suggestion(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
-    brain_dump_id: Mapped[int | None] = mapped_column(ForeignKey("brain_dumps.id"), nullable=True)
+    brain_dump_id: Mapped[int | None] = mapped_column(
+        ForeignKey("brain_dumps.id"),
+        nullable=True,
+    )
     title: Mapped[str] = mapped_column(String(160))
     micro_step: Mapped[str] = mapped_column(Text)
     effort_level: Mapped[str] = mapped_column(String(20), default="tiny")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     session: Mapped[Session] = relationship(back_populates="suggestions")
 
@@ -68,8 +75,8 @@ class Action(Base):
     title: Mapped[str] = mapped_column(String(160))
     micro_step: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default=ActionStatus.active.value)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     session: Mapped[Session] = relationship(back_populates="actions")
 
@@ -83,6 +90,6 @@ class Feedback(Base):
     action_id: Mapped[int | None] = mapped_column(ForeignKey("actions.id"), nullable=True)
     reaction: Mapped[str] = mapped_column(String(30))
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     session: Mapped[Session] = relationship(back_populates="feedback")

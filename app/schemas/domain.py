@@ -1,5 +1,6 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -48,7 +49,7 @@ class BrainDumpResponse(BaseModel):
     suggestions: list[SuggestionRead]
 
 
-class ActionStatus(str, Enum):
+class ActionStatus(StrEnum):
     active = "active"
     completed = "completed"
     aborted = "aborted"
@@ -78,12 +79,7 @@ class ActionRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class FeedbackReaction(str, Enum):
-    do = "do"
-    snooze = "snooze"
-    pass_ = "pass"
-    make_smaller = "make_smaller"
-    capture_only = "capture_only"
+FeedbackReaction = Literal["do", "snooze", "pass", "make_smaller", "capture_only"]
 
 
 class FeedbackCreate(BaseModel):

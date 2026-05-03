@@ -1,5 +1,5 @@
 import re
-
+from typing import Protocol
 
 SAFETY_NET_ACTIONS = [
     ("물 한 컵 마시기", "컵에 물을 따르고 한 모금 마시기"),
@@ -8,11 +8,39 @@ SAFETY_NET_ACTIONS = [
 ]
 
 
+class SuggestionService(Protocol):
+    def generate_micro_steps(self, raw_text: str, limit: int = 5) -> list[dict[str, str]]:
+        """Turn unstructured text into small action candidates."""
+
+    def generate_smaller_step(self, text: str) -> dict[str, str]:
+        """Shrink an existing suggestion into a lower-effort first step."""
+
+
+class RuleBasedSuggestionService:
+    """Deterministic MVP implementation.
+
+    This keeps the product honest for now: no AI claims, predictable output,
+    and a clean seam for a future LLM-backed implementation.
+    """
+
+    def generate_micro_steps(self, raw_text: str, limit: int = 5) -> list[dict[str, str]]:
+        return generate_micro_steps(raw_text, limit)
+
+    def generate_smaller_step(self, text: str) -> dict[str, str]:
+        return generate_smaller_step(text)
+
+
+def get_suggestion_service() -> SuggestionService:
+    return RuleBasedSuggestionService()
+
+
 def generate_micro_steps(raw_text: str, limit: int = 5) -> list[dict[str, str]]:
     normalized = re.sub(r"\s+", " ", raw_text).strip()
     parts = [
         part.strip(" .,!?\t")
-        for part in re.split(r"[,\n]| 그리고 | 하고 | 해야 하고 | 해야함|해야 함| plus ", normalized)
+        for part in re.split(
+            r"[,\n]| 그리고 | 하고 | 해야 하고 | 해야함|해야 함| plus ", normalized
+        )
         if part.strip(" .,!?\t")
     ]
 

@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     app_name: str = "ADHD Todo API"
     database_url: str = "sqlite:///./adhd_todo.db"
     environment: str = "local"
+    auto_create_tables: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
