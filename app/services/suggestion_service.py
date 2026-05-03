@@ -1,0 +1,35 @@
+from fastapi import HTTPException
+from sqlalchemy.orm import Session as DbSession
+
+from app.models import Suggestion
+from app.repositories.suggestion_repo import SuggestionRepository
+from app.services.common import require_session
+from app.services.suggestion.generator import SuggestionGenerator
+
+
+class SuggestionService:
+    def __init__(self, db: DbSession, generator: SuggestionGenerator):
+        self.db = db
+        self.generator = generator
+        self.suggestions = SuggestionRepository(db)
+
+    def list_by_session(self, session_id: int) -> list[Suggestion]:
+        require_session(self.db, session_id)
+        return self.suggestions.list_by_session(session_id)
+
+    def make_smaller(self, suggestion_id: int) -> Suggestion:
+        suggestion = self.suggestions.get(suggestion_id)
+        if suggestion is None:
+            raise HTTPException(status_code=404, detail="Suggestion not found")
+
+        smaller = self.generator.generate_smaller_step(suggestion.micro_step)
+        new_suggestion = self.suggestions.create(
+            session_id=suggestion.session_id,
+            brain_dump_id=suggestion.brain_dump_id,
+            title=smaller["title"],
+            micro_step=smaller["micro_step"],
+            effort_level=smaller["effort_level"],
+        )
+        self.db.commit()
+        self.db.refresh(new_suggestion)
+        return new_suggestion
