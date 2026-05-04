@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-this-secret-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+    refresh_token_expire_days: int = 14
+    login_failure_limit: int = 5
+    login_block_minutes: int = 5
+    login_rate_limit_per_minute: int = 20
+    brain_dump_rate_limit_per_minute: int = 60
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
