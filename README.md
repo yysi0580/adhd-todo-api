@@ -45,6 +45,7 @@ app/
         suggestions.py
         actions.py
         feedback.py
+        ai.py
   core/
     config.py
     db.py
@@ -60,6 +61,7 @@ app/
     suggestion.py
     action.py
     feedback.py
+    ai.py
   schemas/
     auth.py
     user.py
@@ -76,11 +78,18 @@ app/
     suggestion_repository.py
     action_repository.py
     feedback_repository.py
+    ai_usage_log_repository.py
   services/
     ai/
       client.py
       prompts.py
       schemas.py
+      cache.py
+      rate_limit.py
+      budget.py
+      cost.py
+      exceptions.py
+      usage_logger.py
     auth_service.py
     session_service.py
     brain_dump_service.py
@@ -173,6 +182,10 @@ AI_PROMPT_VERSION=v1
 AI_RATE_LIMIT_PER_USER_PER_MINUTE=10
 AI_RATE_LIMIT_PER_USER_PER_DAY=100
 AI_RATE_LIMIT_ANONYMOUS_PER_IP_PER_MINUTE=5
+AI_DAILY_GLOBAL_LIMIT=1000
+AI_DAILY_GLOBAL_COST_LIMIT_USD=5.0
+AI_PER_USER_DAILY_COST_LIMIT_USD=1.0
+AI_MONTHLY_GLOBAL_COST_LIMIT_USD=50.0
 AI_CACHE_ENABLED=true
 AI_CACHE_TTL_MINUTES=30
 AI_COST_LOG_ENABLED=true
@@ -340,6 +353,8 @@ GET  /api/v1/actions/{action_id}
 POST /api/v1/actions/{action_id}/complete
 POST /api/v1/actions/{action_id}/abort
 POST /api/v1/feedback
+GET  /api/v1/ai/status
+GET  /api/v1/ai/usage/me
 ```
 
 `PATCH /api/v1/actions/{action_id}`는 제거되었습니다. Action 상태 변경은 `complete`와 `abort` 전용 API만 사용합니다.
@@ -357,10 +372,10 @@ POST /api/v1/feedback
 
 ## AI suggestion
 
-현재는 rule-based suggestion generator를 기본으로 사용하며, 추후 OpenAI Structured Outputs 기반 AI generator로 교체 가능하도록 설계되어 있습니다. 운영 또는 실험 환경에서 아래 설정을 켜면 OpenAI Responses API 기반 AI generator가 Brain Dump와 make_smaller suggestion 생성을 담당할 수 있습니다.
+현재는 rule-based suggestion generator를 fallback으로 유지하면서, OpenAI Responses API + Structured Outputs 기반 AI generator를 선택적으로 사용할 수 있습니다. 운영 또는 실험 환경에서 아래 설정을 켜면 AI generator가 Brain Dump와 make_smaller suggestion 생성을 보조합니다.
 
 ```text
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=발급받은키
 AI_SUGGESTION_ENABLED=true
 AI_MODEL=gpt-4.1-mini
 ```
@@ -368,7 +383,7 @@ AI_MODEL=gpt-4.1-mini
 Windows에서 환경변수로 넣는 경우:
 
 ```cmd
-setx OPENAI_API_KEY "sk-..."
+setx OPENAI_API_KEY "발급받은키"
 ```
 
 새 환경변수는 기존 터미널/서버 프로세스에 자동 반영되지 않으므로 백엔드 서버를 재시작합니다. 실제 키는 GitHub에 올리지 않습니다.
@@ -394,10 +409,12 @@ AI 비용 통제:
 
 - 로그인 사용자는 기본 분당 10회, 하루 100회로 AI 호출이 제한됩니다.
 - 비로그인 사용자는 추후 확장을 위해 IP 기준 분당 5회 구조를 준비했습니다.
+- 전체 일일 호출 수, 전체 일일 예상 비용, 사용자별 일일 예상 비용, 전체 월간 예상 비용 제한을 적용합니다.
 - 동일 사용자/모델/prompt version/입력 hash 기준으로 기본 30분 캐시합니다.
 - 캐시 hit이면 OpenAI를 다시 호출하지 않습니다.
-- 사용량은 logger로 남기며, 추후 `AiUsageLog` DB 테이블로 옮길 수 있게 분리했습니다.
+- AI 성공, 실패, fallback, cache hit 사용량은 `AiUsageLog` DB 테이블에 저장합니다.
 - 예상 비용은 token usage와 환경변수 가격으로 계산합니다.
+- Settings 화면과 운영 점검용으로 `/api/v1/ai/status`, `/api/v1/ai/usage/me`를 제공합니다. API key 문자열은 응답하지 않습니다.
 
 OpenAI 가격은 변경될 수 있습니다. 실제 배포 전 반드시 현재 OpenAI pricing을 확인하고 `AI_COST_*` 값을 조정하세요.
 
@@ -405,8 +422,36 @@ AI 실패/제한 처리:
 
 - API key 없음 또는 `AI_SUGGESTION_ENABLED=false`: rule-based generator 사용
 - OpenAI API 오류, timeout, invalid structured output, empty suggestions: rule-based fallback
-- AI rate limit 초과: OpenAI 호출 없이 429 `AI_RATE_LIMIT_EXCEEDED`
+- AI rate/budget limit 초과: OpenAI 호출 없이 rule-based fallback
 - fallback이 발생해도 Brain Dump → Suggestions → Feedback → Action 응답 shape는 유지
+
+AI status 응답 예:
+
+```json
+{
+  "enabled": true,
+  "model": "gpt-4.1-mini",
+  "structuredOutput": true,
+  "cacheEnabled": true,
+  "rateLimitEnabled": true,
+  "budgetLimitEnabled": true,
+  "fallback": "rule_based",
+  "promptVersion": "v1"
+}
+```
+
+AI usage 응답 예:
+
+```json
+{
+  "todayCalls": 0,
+  "todayEstimatedCost": 0.0,
+  "monthlyEstimatedCost": 0.0,
+  "cacheHits": 0,
+  "fallbackCount": 0,
+  "lastUsedAt": null
+}
+```
 
 ## Feedback reaction
 
@@ -431,6 +476,24 @@ python -m pytest
 테스트는 메모리 SQLite DB를 사용해서 로컬 개발 DB를 건드리지 않습니다. 현재 핵심 테스트에는 action 상세 조회, 타인 action 403, feedback `do` 응답의 `action` 포함 검증이 들어 있습니다.
 AI 테스트는 실제 OpenAI API를 호출하지 않고 mock client로 검증합니다. 현재 포함된 항목은 AI disabled/key missing fallback, AI success, invalid output fallback, make_smaller fallback, cache 재사용, rate limit, 비용 계산, key 하드코딩 방지입니다.
 
+실제 OpenAI smoke test는 opt-in입니다. 기본 `pytest`에서는 실제 OpenAI 호출이 발생하지 않습니다.
+
+PowerShell:
+
+```powershell
+$env:RUN_REAL_AI_SMOKE="true"
+$env:AI_SUGGESTION_ENABLED="true"
+python -m pytest tests/smoke/test_real_ai.py
+```
+
+macOS/Linux:
+
+```bash
+RUN_REAL_AI_SMOKE=true AI_SUGGESTION_ENABLED=true python -m pytest tests/smoke/test_real_ai.py
+```
+
+`OPENAI_API_KEY`가 없거나 smoke flag가 없으면 smoke test는 skip됩니다.
+
 ## 반복 사용 검증
 
 MVP 안정화 시 아래 흐름을 반복 확인합니다.
@@ -440,8 +503,16 @@ MVP 안정화 시 아래 흐름을 반복 확인합니다.
 3. 완료된 action을 다시 완료/중단할 수 없는지 확인
 4. 다른 계정으로 session/action 접근 시 403이 반환되는지 확인
 5. access token 만료 후 refresh token으로 재발급되는지 확인
-6. AI rate limit을 낮춘 테스트 설정에서 429 메시지가 반환되는지 확인
+6. AI rate/budget limit을 낮춘 테스트 설정에서 OpenAI 호출 없이 rule-based fallback이 유지되는지 확인
 7. OpenAI 오류를 mock으로 발생시켜 rule-based fallback이 유지되는지 확인
+
+## AI 운영 가이드
+
+- `.env`는 UTF-8로 저장합니다. Windows에서 인코딩 문제가 있으면 파일을 UTF-8로 다시 저장한 뒤 서버를 재시작합니다.
+- `CORS_ORIGINS`는 쉼표 문자열 또는 JSON 배열 형태를 모두 지원합니다.
+- AI 제한에 걸리면 사용자 흐름은 기본 제안기로 계속 진행되고, 내부 사용량 로그에는 제한 코드가 남습니다.
+- 비용 제한은 예상 token 비용 기준입니다. 실제 청구 금액과 차이가 날 수 있으니 운영 전 OpenAI pricing을 확인합니다.
+- 프론트엔드는 OpenAI를 직접 호출하지 않습니다. `OPENAI_API_KEY`는 백엔드 `.env` 또는 서버 환경변수에만 둡니다.
 
 ## 배포
 

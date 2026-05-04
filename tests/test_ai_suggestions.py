@@ -84,6 +84,10 @@ def restore_ai_settings():
     original_day = settings.ai_rate_limit_per_user_per_day
     original_cache = settings.ai_cache_enabled
     original_cost_log = settings.ai_cost_log_enabled
+    original_global_limit = settings.ai_daily_global_limit
+    original_global_cost = settings.ai_daily_global_cost_limit_usd
+    original_user_cost = settings.ai_per_user_daily_cost_limit_usd
+    original_monthly_cost = settings.ai_monthly_global_cost_limit_usd
     ai_cache.clear()
     ai_rate_limiter.clear()
     FakeAiClient.calls = 0
@@ -95,6 +99,10 @@ def restore_ai_settings():
     settings.ai_rate_limit_per_user_per_day = original_day
     settings.ai_cache_enabled = original_cache
     settings.ai_cost_log_enabled = original_cost_log
+    settings.ai_daily_global_limit = original_global_limit
+    settings.ai_daily_global_cost_limit_usd = original_global_cost
+    settings.ai_per_user_daily_cost_limit_usd = original_user_cost
+    settings.ai_monthly_global_cost_limit_usd = original_monthly_cost
     ai_cache.clear()
     ai_rate_limiter.clear()
 
@@ -310,9 +318,62 @@ def test_ai_rate_limit_blocks_openai_call(
     )
 
     assert first_response.status_code == 201
-    assert second_response.status_code == 429
-    assert second_response.json()["code"] == "AI_RATE_LIMIT_EXCEEDED"
+    assert second_response.status_code == 201
+    assert all(
+        suggestion["source"] == "rule_based" for suggestion in second_response.json()["suggestions"]
+    )
     assert FakeAiClient.calls == 1
+
+
+def test_ai_budget_guard_falls_back_without_openai_call(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch,
+):
+    _enable_ai(monkeypatch, FakeAiClient)
+    settings = get_settings()
+    settings.ai_cache_enabled = False
+    settings.ai_daily_global_limit = 0
+
+    response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "예산 제한 요청"},
+    )
+
+    assert response.status_code == 201
+    assert all(
+        suggestion["source"] == "rule_based" for suggestion in response.json()["suggestions"]
+    )
+    assert FakeAiClient.calls == 0
+
+
+def test_ai_status_and_usage_api_returns_safe_state(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch,
+):
+    _enable_ai(monkeypatch, FakeAiClient)
+    brain_response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "교수님 메일 보내고 팀 일정 공유해야 함"},
+    )
+
+    status_response = client.get("/api/v1/ai/status", headers=auth_headers)
+    usage_response = client.get("/api/v1/ai/usage/me", headers=auth_headers)
+
+    assert brain_response.status_code == 201
+    assert status_response.status_code == 200
+    status_body = status_response.json()
+    assert status_body["enabled"] is True
+    assert status_body["model"] == "test-model"
+    assert "OPENAI_API_KEY" not in status_response.text
+
+    assert usage_response.status_code == 200
+    usage_body = usage_response.json()
+    assert usage_body["todayCalls"] >= 1
+    assert usage_body["todayEstimatedCost"] >= 0
 
 
 def test_ai_cost_calculation_uses_cached_token_price():

@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     ai_rate_limit_per_user_per_minute: int = 10
     ai_rate_limit_per_user_per_day: int = 100
     ai_rate_limit_anonymous_per_ip_per_minute: int = 5
+    ai_daily_global_limit: int = 1000
+    ai_daily_global_cost_limit_usd: float = 5.0
+    ai_per_user_daily_cost_limit_usd: float = 1.0
+    ai_monthly_global_cost_limit_usd: float = 50.0
     ai_cache_enabled: bool = True
     ai_cache_ttl_minutes: int = 30
     ai_cost_log_enabled: bool = True

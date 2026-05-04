@@ -1,6 +1,10 @@
 from typing import Protocol
 
+from fastapi import Depends
+from sqlalchemy.orm import Session as DbSession
+
 from app.core.config import get_settings
+from app.core.db import get_db
 from app.domain.enums import SuggestionGenerationType, SuggestionSource
 from app.services.suggestion.micro_step_builder import build_micro_step
 from app.services.suggestion.safety_net import SAFETY_NET_ACTIONS
@@ -100,7 +104,7 @@ def _ensure_minimum_suggestions(candidates: list[dict[str, str]]) -> list[dict[s
     return candidates
 
 
-def get_suggestion_generator() -> SuggestionGenerator:
+def get_suggestion_generator(db: DbSession = Depends(get_db)) -> SuggestionGenerator:
     settings = get_settings()
     if settings.ai_suggestion_enabled and settings.openai_api_key:
         from app.services.ai.client import OpenAIResponsesClient
@@ -114,5 +118,6 @@ def get_suggestion_generator() -> SuggestionGenerator:
                 max_output_tokens=settings.ai_max_output_tokens,
             ),
             fallback=RuleBasedSuggestionGenerator(),
+            db=db,
         )
     return RuleBasedSuggestionGenerator()

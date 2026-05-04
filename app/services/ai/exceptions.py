@@ -11,6 +11,21 @@ class AIRateLimitExceededError(AppError):
     status_code = 429
 
 
+class AIBudgetExceededError(AppError):
+    code = "AI_BUDGET_EXCEEDED"
+    status_code = 429
+
+
+class AIDailyLimitExceededError(AppError):
+    code = "AI_DAILY_LIMIT_EXCEEDED"
+    status_code = 429
+
+
+class AIMonthlyBudgetExceededError(AppError):
+    code = "AI_MONTHLY_BUDGET_EXCEEDED"
+    status_code = 429
+
+
 class AIInvalidResponseError(AppError):
     code = "AI_INVALID_RESPONSE"
     status_code = 502

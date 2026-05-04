@@ -5,7 +5,11 @@ from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.models import User
 from app.schemas.suggestion import SuggestionRead
-from app.services.suggestion import SuggestionGenerator, get_suggestion_generator
+from app.services.suggestion import (
+    RuleBasedSuggestionGenerator,
+    SuggestionGenerator,
+    get_suggestion_generator,
+)
 from app.services.suggestion_service import SuggestionService
 
 router = APIRouter()
@@ -17,7 +21,7 @@ def list_suggestions(
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return SuggestionService(db, get_suggestion_generator()).list_by_session(
+    return SuggestionService(db, RuleBasedSuggestionGenerator()).list_by_session(
         user_id=current_user.id,
         session_id=session_id,
     )

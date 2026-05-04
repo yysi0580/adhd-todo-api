@@ -2,10 +2,16 @@ import logging
 
 from app.core.config import get_settings
 from app.domain.enums import SuggestionGenerationType, SuggestionSource
+from app.repositories.ai_usage_log_repository import AiUsageLogRepository
+from app.services.ai.budget import AIBudgetGuard
 from app.services.ai.cache import ai_cache, hash_ai_input, normalize_ai_input
 from app.services.ai.client import OpenAIResponsesClient
 from app.services.ai.cost import AIUsage, estimate_cost
-from app.services.ai.exceptions import AIRateLimitExceededError
+from app.services.ai.exceptions import (
+    AIBudgetExceededError,
+    AIDailyLimitExceededError,
+    AIRateLimitExceededError,
+)
 from app.services.ai.prompts import build_brain_dump_input, build_make_smaller_input
 from app.services.ai.rate_limit import ai_rate_limiter
 from app.services.ai.schemas import AISuggestionResponse, SuggestionCandidate
@@ -16,9 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 class AiSuggestionGenerator:
-    def __init__(self, ai_client: OpenAIResponsesClient, fallback: SuggestionGenerator):
+    def __init__(self, ai_client: OpenAIResponsesClient, fallback: SuggestionGenerator, db=None):
         self.ai_client = ai_client
         self.fallback = fallback
+        self.db = db
+        self.usage_logs = AiUsageLogRepository(db) if db is not None else None
+        self.budget_guard = AIBudgetGuard(self.usage_logs) if self.usage_logs is not None else None
 
     def generate_from_brain_dump(
         self,
@@ -39,8 +48,12 @@ class AiSuggestionGenerator:
                 limit=5,
                 generation_type=SuggestionGenerationType.original.value,
             )
-        except AIRateLimitExceededError:
-            raise
+        except (AIRateLimitExceededError, AIBudgetExceededError, AIDailyLimitExceededError) as exc:
+            logger.info(
+                "AI guardrail triggered; falling back to rule-based generator: %s", exc.code
+            )
+            self._log_failure(user_id, "brain_dump", exc.code)
+            return self.fallback.generate_micro_steps(raw_text, limit=5, user_id=user_id)
         except Exception:
             logger.exception(
                 "AI suggestion generation failed; falling back to rule-based generator"
@@ -69,8 +82,12 @@ class AiSuggestionGenerator:
                 limit=3,
                 generation_type=SuggestionGenerationType.smaller.value,
             )
-        except AIRateLimitExceededError:
-            raise
+        except (AIRateLimitExceededError, AIBudgetExceededError, AIDailyLimitExceededError) as exc:
+            logger.info(
+                "AI guardrail triggered; falling back to rule-based generator: %s", exc.code
+            )
+            self._log_failure(user_id, "make_smaller", exc.code)
+            return self.fallback.generate_smaller_steps(micro_step, limit=3, user_id=user_id)
         except Exception:
             logger.exception(
                 "AI make_smaller generation failed; falling back to rule-based generator"
@@ -118,6 +135,8 @@ class AiSuggestionGenerator:
                 return cached
 
         self._enforce_rate_limit(user_id)
+        if self.budget_guard is not None:
+            self.budget_guard.enforce(user_id)
 
         result = self.ai_client.create_suggestions(prompt)
         response = getattr(result, "response", result)
@@ -199,6 +218,27 @@ class AiSuggestionGenerator:
                 error_code=error_code,
             )
         )
+        if self.usage_logs is not None:
+            self.usage_logs.create(
+                user_id=user_id,
+                feature_name=feature_name,
+                model=self.ai_client.model,
+                prompt_version=settings.ai_prompt_version,
+                input_tokens=usage.input_tokens,
+                cached_tokens=usage.cached_tokens,
+                output_tokens=usage.output_tokens,
+                total_tokens=usage.total_tokens,
+                estimated_cost=estimated_cost,
+                cache_hit=cache_hit,
+                source=(
+                    SuggestionSource.ai.value
+                    if not error_code
+                    else SuggestionSource.rule_based.value
+                ),
+                success=success,
+                fallback_used=not success,
+                error_code=error_code,
+            )
 
     def _log_failure(self, user_id: int | None, feature_name: str, error_code: str) -> None:
         self._log_usage(
