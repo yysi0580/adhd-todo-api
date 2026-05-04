@@ -107,6 +107,28 @@ def test_existing_user_without_nickname_still_returns_me(
     assert response.json()["nickname"] is None
 
 
+def test_update_me_changes_nickname(client: TestClient, auth_headers: dict[str, str]):
+    response = client.patch(
+        "/api/v1/users/me",
+        headers=auth_headers,
+        json={"nickname": "새닉네임"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["nickname"] == "새닉네임"
+    assert "password_hash" not in response.text
+
+
+def test_update_me_rejects_blank_nickname(client: TestClient, auth_headers: dict[str, str]):
+    response = client.patch(
+        "/api/v1/users/me",
+        headers=auth_headers,
+        json={"nickname": " "},
+    )
+
+    assert response.status_code == 422
+
+
 def test_expired_access_token_is_rejected(client: TestClient):
     client.post(
         "/api/v1/auth/register",

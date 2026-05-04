@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 from app.services.ai.exceptions import AIInvalidResponseError
 
-PRESSURE_WORDS = ("반드시 해야", "실패했다", "게으르", "실패", "성취율")
+PRESSURE_WORDS = ("반드시 해야", "반드시", "무조건", "실패했다", "게으르", "실패", "성취율")
 
 
 class SuggestionCandidate(BaseModel):

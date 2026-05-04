@@ -22,3 +22,8 @@ class UserRepository:
         self.db.add(user)
         self.db.flush()
         return user
+
+    def update_nickname(self, user: User, nickname: str) -> User:
+        user.nickname = nickname
+        self.db.flush()
+        return user

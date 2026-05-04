@@ -24,6 +24,7 @@ FastAPI 기반 ADHD 타깃 실행 보조 API입니다.
 - Feedback: `do`, `snooze`, `pass`, `make_smaller`, `capture_only` 반응 저장
 - Action: 선택된 suggestion을 실행 상태로 전환하고 `complete` 또는 `abort`
 - History: 내 최근 session, brain dump, action, feedback 요약 조회
+- Routines: 제안이 막힐 때 다시 돌아올 수 있는 사용자별 안전망 행동 CRUD
 - Login protection: 비밀번호 정책, 로그인 실패 5회 차단, 주요 API rate limit
 
 ## 코드 구조
@@ -46,6 +47,7 @@ app/
         actions.py
         feedback.py
         ai.py
+        routines.py
   core/
     config.py
     db.py
@@ -61,7 +63,9 @@ app/
     suggestion.py
     action.py
     feedback.py
-    ai.py
+    ai_usage_log.py
+    routine.py
+    routine.py
   schemas/
     auth.py
     user.py
@@ -79,6 +83,7 @@ app/
     action_repository.py
     feedback_repository.py
     ai_usage_log_repository.py
+    routine_repository.py
   services/
     ai/
       client.py
@@ -97,6 +102,7 @@ app/
     action_service.py
     feedback_service.py
     history_service.py
+    routine_service.py
     suggestion/
       ai_generator.py
       splitter.py
@@ -343,6 +349,7 @@ GET  /api/v1/health
 POST /api/v1/auth/register
 POST /api/v1/auth/login
 GET  /api/v1/users/me
+PATCH /api/v1/users/me
 POST /api/v1/auth/refresh
 POST /api/v1/sessions
 GET  /api/v1/sessions/{session_id}
@@ -360,10 +367,15 @@ POST /api/v1/actions/{action_id}/abort
 POST /api/v1/feedback
 GET  /api/v1/ai/status
 GET  /api/v1/ai/usage/me
+GET  /api/v1/routines
+POST /api/v1/routines
+PATCH /api/v1/routines/{routine_id}
+DELETE /api/v1/routines/{routine_id}
 ```
 
 `GET /api/v1/users/me` 응답에는 `id`, `email`, `nickname`, `created_at`, `updated_at`이 포함됩니다.
 비밀번호 해시나 token secret은 응답하지 않습니다.
+`PATCH /api/v1/users/me`는 2~30자 nickname 수정만 지원하며, 저장 즉시 프론트 Topbar에 반영할 수 있습니다.
 
 `PATCH /api/v1/actions/{action_id}`는 제거되었습니다. Action 상태 변경은 `complete`와 `abort` 전용 API만 사용합니다.
 `GET /api/v1/actions/{action_id}`는 본인 action만 조회할 수 있으며, 다른 사용자의 action 접근은 403으로 응답합니다.
@@ -490,6 +502,9 @@ python -m ruff check app tests alembic --fix
 python -m pytest
 ```
 
+GitHub Actions도 같은 검증을 실행합니다. 기본 CI에서는 `AI_SUGGESTION_ENABLED=false`,
+`RUN_REAL_AI_SMOKE=false`로 실제 OpenAI 호출이 발생하지 않습니다.
+
 테스트는 메모리 SQLite DB를 사용해서 로컬 개발 DB를 건드리지 않습니다. 현재 핵심 테스트에는 action 상세 조회, 타인 action 403, feedback `do` 응답의 `action` 포함 검증이 들어 있습니다.
 AI 테스트는 실제 OpenAI API를 호출하지 않고 mock client로 검증합니다. 현재 포함된 항목은 AI disabled/key missing fallback, AI success, invalid output fallback, make_smaller fallback, cache 재사용, rate limit, 비용 계산, key 하드코딩 방지입니다.
 
@@ -533,21 +548,30 @@ MVP 안정화 시 아래 흐름을 반복 확인합니다.
 
 ## 배포
 
-가장 단순한 배포 흐름:
+권장 production 구조:
+
+```text
+https://yangtheory.site      -> Frontend static build
+https://yangtheory.site/api  -> Backend reverse proxy
+```
+
+포트 기반 주소(`:5173`, `:8001`)는 개발/시연용입니다.
+
+Backend 배포 흐름:
 
 1. GitHub에 이 프로젝트를 올립니다.
-2. Render 같은 Docker 지원 서비스에서 새 Web Service를 만듭니다.
-3. 이 repo를 연결합니다.
-4. `DATABASE_URL`은 PostgreSQL로 설정합니다.
-5. `JWT_SECRET_KEY`를 운영용 secret으로 설정합니다.
-6. 배포 전 `python -m alembic upgrade head`를 실행합니다.
+2. 서버에서 `.env.example`을 `.env`로 복사하고 secret을 채웁니다.
+3. `DATABASE_URL`은 PostgreSQL로 설정합니다.
+4. `JWT_SECRET_KEY`를 운영용 secret으로 설정합니다.
+5. 배포 전 `python -m alembic upgrade head`를 실행합니다.
+6. `uvicorn app.main:app --host 127.0.0.1 --port 8000` 또는 systemd로 실행합니다.
 7. Health check path를 `/api/v1/health`로 둡니다.
 
 초기 MVP는 SQLite로 실행할 수 있지만, 실제 운영에서는 PostgreSQL을 권장합니다.
 
 ## 배포 확인
 
-현재 테스트용 주소:
+현재 개발/시연용 주소:
 
 ```text
 Frontend: http://yangtheory.site:5173
@@ -568,7 +592,24 @@ http://yangtheory.site:5173/today
 
 로그인 후 Brain Dump를 입력하고 `/sessions/{session_id}/suggestions`,
 `/actions/{action_id}`, `/history` 흐름을 확인합니다. 백엔드 CORS에는
+최종 프론트 origin인 `https://yangtheory.site` 또는 시연용
 `http://yangtheory.site:5173` origin이 포함되어야 합니다.
+
+## CI
+
+Backend CI는 `.github/workflows/backend-ci.yml`에서 실행됩니다.
+
+- Python 3.11
+- `pip install -e ".[dev]"`
+- `ruff check app tests alembic`
+- `black --check app tests alembic`
+- `pytest`
+
+## Calendar Import
+
+Calendar Import는 아직 구현되지 않았습니다. 다음 단계 문서는
+`docs/calendar-import.md`에 있습니다. 외부 일정을 바로 할 일로 만들지 않고,
+사용자가 선택할 수 있는 suggestion 후보로 흡수하는 방향입니다.
 
 ## yangtheory.site로 열기
 

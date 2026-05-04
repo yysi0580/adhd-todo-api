@@ -42,6 +42,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:5173",
         "http://yangtheory.site:5173",
+        "https://yangtheory.site",
+        "http://yangtheory.site",
     ]
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8-sig")

@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.models.action import Action
     from app.models.brain_dump import BrainDump
     from app.models.feedback import Feedback
+    from app.models.routine import Routine
     from app.models.session import Session
     from app.models.suggestion import Suggestion
 
@@ -34,3 +35,4 @@ class User(Base):
     suggestions: Mapped[list["Suggestion"]] = relationship(back_populates="user")
     actions: Mapped[list["Action"]] = relationship(back_populates="user")
     feedback: Mapped[list["Feedback"]] = relationship(back_populates="user")
+    routines: Mapped[list["Routine"]] = relationship(back_populates="user")
