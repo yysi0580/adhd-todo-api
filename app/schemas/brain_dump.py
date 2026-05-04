@@ -13,6 +13,7 @@ class BrainDumpCreate(BaseModel):
 
 class BrainDumpRead(BaseModel):
     id: int
+    user_id: int | None
     session_id: int
     raw_text: str
     created_at: datetime

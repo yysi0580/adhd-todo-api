@@ -7,14 +7,20 @@ from app.core.db import Base
 from app.domain.enums import ActionStatus
 from app.domain.time import utc_now
 from app.models.session import Session
+from app.models.user import User
 
 
 class Action(Base):
     __tablename__ = "actions"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
-    suggestion_id: Mapped[int | None] = mapped_column(ForeignKey("suggestions.id"), nullable=True)
+    suggestion_id: Mapped[int | None] = mapped_column(
+        ForeignKey("suggestions.id"),
+        index=True,
+        nullable=True,
+    )
     title: Mapped[str] = mapped_column(String(160))
     micro_step: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default=ActionStatus.active.value)
@@ -23,4 +29,5 @@ class Action(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
+    user: Mapped[User] = relationship(back_populates="actions")
     session: Mapped[Session] = relationship(back_populates="actions")

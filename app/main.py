@@ -27,7 +27,10 @@ app = FastAPI(
 
 @app.exception_handler(AppError)
 def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"code": exc.code, "message": exc.message},
+    )
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

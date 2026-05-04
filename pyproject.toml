@@ -5,7 +5,10 @@ description = "REST API for an ADHD-focused action suggestion todo app."
 requires-python = ">=3.11"
 dependencies = [
     "alembic>=1.13.0",
+    "bcrypt>=4.1.0",
+    "email-validator>=2.0.0",
     "fastapi>=0.115.0",
+    "PyJWT>=2.8.0",
     "psycopg[binary]>=3.2.0",
     "uvicorn[standard]>=0.30.0",
     "sqlalchemy>=2.0.0",

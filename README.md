@@ -1,53 +1,42 @@
 # ADHD Todo API
 
-ADHD 사용자를 위한 투두앱 백엔드 MVP입니다.
+FastAPI 기반 ADHD 타깃 실행 보조 API입니다.
 
-이 앱은 "할 일 목록을 관리하는 앱"이 아니라, 선택 부담을 시스템이 대신 떠안는 앱입니다. 사용자는 생각을 정리해서 입력하지 않아도 되고, 시스템이 여러 micro-step suggestion으로 분해한 뒤 그중 하나를 선택해 Action으로 실행합니다.
+이 앱은 할 일을 관리하는 앱이 아니라, 선택 부담을 시스템이 대신 떠안는 앱입니다. 사용자는 정리되지 않은 생각을 그대로 Brain Dump로 입력하고, 시스템은 그 내용을 여러 개의 작은 행동 후보로 분해합니다. 사용자는 후보 중 하나를 선택하거나, 넘기거나, 더 작게 만들기만 하면 됩니다.
 
-핵심 원칙:
+## 핵심 컨셉
 
-- 처음부터 행동 1개만 강제하지 않고 여러 suggestion을 제시합니다.
-- 입력은 한 줄 또는 장문 모두 허용합니다.
+- Brain Dump는 한 줄과 장문을 모두 허용합니다.
 - 장문 입력은 2~5개의 micro-step suggestion으로 자동 분해합니다.
-- 사용자는 suggestion 중 하나를 선택하거나, 전부 패스하거나, 더 작게 만들기를 요청할 수 있습니다.
-- 실행은 suggestion 선택 후 하나의 Action으로 수렴합니다.
-- completed/aborted는 압박용 성공/실패가 아니라 다음 제안을 조절하기 위한 패턴 데이터입니다.
+- 처음부터 행동 1개만 강제하지 않고 여러 suggestion을 제시합니다.
+- `reaction=do`를 보내면 선택된 suggestion이 하나의 Action으로 수렴합니다.
+- `completed`와 `aborted`는 성공/실패 압박이 아니라 다음 제안을 위한 패턴 데이터입니다.
+- 현재 suggestion 생성은 rule-based이며, 추후 LLM 구현체로 교체할 수 있게 분리돼 있습니다.
 
-## 기술 스택
+## 주요 기능
 
-- Python
-- FastAPI
-- SQLAlchemy
-- SQLite 기본값, PostgreSQL 운영 권장
-- Alembic 마이그레이션
-- Docker 배포 가능
-
-## 현재 구현 범위
-
-현재 제안 생성은 AI가 아니라 `RuleBasedSuggestionService` 기반입니다.
-
-- 쉼표, 줄바꿈, 마침표, "그리고", "해야 하고", "또", "먼저" 같은 표현을 기준으로 입력을 나눕니다.
-- 메일/문서/공유 같은 키워드에 따라 2~5분짜리 micro-step을 만듭니다.
-- 추후 LLM 기반 구현은 같은 `SuggestionService` 인터페이스를 구현해서 교체하면 됩니다.
-
-핵심 기능:
-
-- Brain Dump: 사용자가 생각을 정리하지 않고 그대로 입력합니다.
-- 자동 분해: 장문 입력을 여러 micro-step으로 분해합니다.
-- 다중 제시: 처음부터 여러 개의 행동 후보를 제시합니다.
-- 선택 기반 실행: 여러 후보 중 하나를 선택하면 Action으로 전환합니다.
-- 평가 없는 반응: 실패/성공 압박 없이 reaction만 저장합니다.
-- make_smaller: 부담스러운 제안을 1~3개의 더 작은 행동으로 재생성합니다.
+- Auth: 회원가입, 로그인, JWT access token 발급, 내 정보 조회
+- Brain Dump: 정리되지 않은 생각 저장
+- 자동 분해: 쉼표, 줄바꿈, 마침표, "그리고", "또", "해야" 같은 표현 기준 분리
+- Suggestions: 여러 개의 2~5분짜리 행동 후보 생성
+- make_smaller: 부담스러운 suggestion을 1~3개의 더 작은 행동으로 재생성
+- Feedback: `do`, `snooze`, `pass`, `make_smaller`, `capture_only` 반응 저장
+- Action: 선택된 suggestion을 실행 상태로 전환하고 `complete` 또는 `abort`
+- History: 내 최근 session, brain dump, action, feedback 요약 조회
 
 ## 코드 구조
 
 ```text
 app/
-  main.py                    # FastAPI 앱 생성, route introspection 페이지
+  main.py
   api/
+    deps.py
     v1/
-      router.py              # v1 endpoint 묶음
-      endpoints/             # HTTP 요청/응답만 담당
+      router.py
+      endpoints/
+        auth.py
+        users.py
+        history.py
         health.py
         sessions.py
         brain_dumps.py
@@ -55,37 +44,45 @@ app/
         actions.py
         feedback.py
   core/
-    config.py                # 환경변수 설정
-    db.py                    # SQLAlchemy engine/session
-    exceptions.py            # 공통 HTTP 예외 helper
+    config.py
+    db.py
+    exceptions.py
+    security.py
   domain/
-    enums.py                 # 상태/반응 enum
-    time.py                  # 공통 시간 함수
-  models/                    # SQLAlchemy 테이블 모델
+    enums.py
+    time.py
+  models/
+    user.py
     session.py
     brain_dump.py
     suggestion.py
     action.py
     feedback.py
-  schemas/                   # Pydantic 요청/응답 스키마
-    common.py
+  schemas/
+    auth.py
+    user.py
+    history.py
     session.py
     brain_dump.py
     suggestion.py
     action.py
     feedback.py
-  repositories/              # DB 접근만 담당
+  repositories/
+    user_repository.py
     session_repository.py
     brain_dump_repository.py
     suggestion_repository.py
     action_repository.py
     feedback_repository.py
-  services/                  # 비즈니스 흐름 담당
+  services/
+    auth_service.py
+    session_service.py
     brain_dump_service.py
     suggestion_service.py
     action_service.py
     feedback_service.py
-    suggestion/              # 제안 생성 세부 로직
+    history_service.py
+    suggestion/
       splitter.py
       micro_step_builder.py
       safety_net.py
@@ -95,16 +92,17 @@ app/
 
 수정 위치 기준:
 
-- API 경로/HTTP 응답 수정: `app/api/v1/endpoints/`
-- Brain Dump 생성 흐름 수정: `app/services/brain_dump_service.py`
-- Action 상태 변경 수정: `app/services/action_service.py`
-- Feedback 저장 수정: `app/services/feedback_service.py`
-- 문장 분해 규칙 수정: `app/services/suggestion/splitter.py`
-- 제안 문구 수정: `app/services/suggestion/micro_step_builder.py`
-- 더 작은 단계 생성 수정: `app/services/suggestion/smaller.py`
-- 안전망 행동 수정: `app/services/suggestion/safety_net.py`
-- DB 쿼리 수정: `app/repositories/`
-- 테이블 구조 수정: `app/models/` + `alembic/versions/`
+- API 경로/HTTP 응답: `app/api/v1/endpoints/`
+- 인증/JWT: `app/core/security.py`, `app/services/auth_service.py`
+- Brain Dump 흐름: `app/services/brain_dump_service.py`
+- Action 상태 변경: `app/services/action_service.py`
+- Feedback 반응 흐름: `app/services/feedback_service.py`
+- 문장 분해 규칙: `app/services/suggestion/splitter.py`
+- 제안 문구 생성: `app/services/suggestion/micro_step_builder.py`
+- 더 작게 만들기: `app/services/suggestion/smaller.py`
+- 안전망 행동: `app/services/suggestion/safety_net.py`
+- DB 쿼리: `app/repositories/`
+- 테이블 변경: `app/models/` + `alembic/versions/`
 
 ## 로컬 실행
 
@@ -113,6 +111,7 @@ cd C:\ytheory\adhd-todo-api
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
+python -m alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -122,46 +121,90 @@ API 문서:
 http://127.0.0.1:8000/docs
 ```
 
-## 핵심 API
+## 환경변수
 
-```http
-GET /api/v1/health
-POST /api/v1/sessions
-POST /api/v1/brain-dumps
-GET /api/v1/sessions/{session_id}/suggestions
-POST /api/v1/suggestions/{suggestion_id}/make-smaller
-POST /api/v1/actions
-PATCH /api/v1/actions/{action_id}
-POST /api/v1/actions/{action_id}/complete
-POST /api/v1/actions/{action_id}/abort
-POST /api/v1/feedback
+```text
+DATABASE_URL=sqlite:///./adhd_todo.db
+AUTO_CREATE_TABLES=true
+JWT_SECRET_KEY=change-this-secret-in-production
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
 ```
 
-## 예시 요청
+운영에서는 `JWT_SECRET_KEY`를 반드시 안전한 값으로 바꾸고, `DATABASE_URL`은 PostgreSQL을 권장합니다.
+
+```text
+DATABASE_URL=postgresql+psycopg://user:password@host:5432/adhd_todo
+AUTO_CREATE_TABLES=false
+```
+
+## API 흐름 예시
+
+1. 회원가입
 
 ```http
-POST /api/v1/brain-dumps
+POST /api/v1/auth/register
 Content-Type: application/json
 
 {
-  "raw_text": "프로젝트 발표 준비해야 하는데 자료도 없고 교수님 메일도 보내야 하고 팀 일정도 공유해야 함"
+  "email": "me@example.com",
+  "password": "password123"
 }
 ```
 
-응답은 새 세션, Brain Dump, 2~5개의 행동 제안을 함께 반환합니다.
-
-make_smaller 예시:
+2. 로그인 후 JWT 받기
 
 ```http
-POST /api/v1/suggestions/{suggestion_id}/make-smaller
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "me@example.com",
+  "password": "password123"
+}
 ```
 
-응답은 1~3개의 더 작은 suggestion 배열입니다.
+이후 보호 API에는 헤더를 붙입니다.
 
-Action 완료/중단 예시:
+```http
+Authorization: Bearer {access_token}
+```
+
+3. Brain Dump 입력
+
+```http
+POST /api/v1/brain-dumps
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "raw_text": "프로젝트 발표 준비해야 하는데 자료 정리하고 교수님 메일 보내고 팀 일정 공유해야 함"
+}
+```
+
+응답은 새 session, brain dump, 2~5개의 suggestion을 함께 반환합니다.
+
+4. suggestion 선택을 feedback으로 전송
+
+```http
+POST /api/v1/feedback
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "session_id": 1,
+  "suggestion_id": 1,
+  "reaction": "do"
+}
+```
+
+`reaction=do`이면 Action이 자동 생성되고 응답에 `action_id`가 포함됩니다.
+
+5. Action 완료 또는 중단
 
 ```http
 POST /api/v1/actions/{action_id}/complete
+Authorization: Bearer {access_token}
 Content-Type: application/json
 
 {
@@ -171,6 +214,7 @@ Content-Type: application/json
 
 ```http
 POST /api/v1/actions/{action_id}/abort
+Authorization: Bearer {access_token}
 Content-Type: application/json
 
 {
@@ -178,41 +222,83 @@ Content-Type: application/json
 }
 ```
 
-Feedback reaction:
+6. 부담스러우면 더 작게 만들기
+
+```http
+POST /api/v1/feedback
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "session_id": 1,
+  "suggestion_id": 1,
+  "reaction": "make_smaller"
+}
+```
+
+응답의 `smaller_suggestions`에 1~3개의 파생 suggestion이 포함됩니다.
+
+## 핵심 API
+
+```http
+GET  /api/v1/health
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+GET  /api/v1/users/me
+POST /api/v1/sessions
+GET  /api/v1/sessions/{session_id}
+GET  /api/v1/sessions/{session_id}/brain-dumps
+GET  /api/v1/sessions/{session_id}/suggestions
+GET  /api/v1/sessions/{session_id}/actions
+GET  /api/v1/sessions/{session_id}/feedback
+GET  /api/v1/me/history
+POST /api/v1/brain-dumps
+POST /api/v1/suggestions/{suggestion_id}/make-smaller
+POST /api/v1/actions
+POST /api/v1/actions/{action_id}/complete
+POST /api/v1/actions/{action_id}/abort
+POST /api/v1/feedback
+```
+
+`PATCH /api/v1/actions/{action_id}`는 이전 호환용 deprecated API입니다. 새 클라이언트는 `complete`와 `abort` 전용 API를 사용하세요.
+
+## Feedback reaction
 
 ```text
 do | snooze | pass | make_smaller | capture_only
 ```
 
-## 배포 방식
+- `do`: suggestion 기반 Action 생성, feedback에 `action_id` 연결
+- `make_smaller`: parent suggestion을 가진 smaller suggestion 1~3개 생성
+- `snooze`: 지금은 feedback만 저장, 추후 `snoozed_until` 확장 가능
+- `pass`: 세션 안에서 넘겼다는 반응만 저장
+- `capture_only`: 실행 없이 기록만 저장
+
+## 테스트
+
+```powershell
+python -m black app tests alembic
+python -m ruff check app tests alembic --fix
+python -m pytest
+```
+
+테스트는 메모리 SQLite DB를 사용해서 로컬 개발 DB를 건드리지 않습니다.
+
+## 배포
 
 가장 단순한 배포 흐름:
 
 1. GitHub에 이 프로젝트를 올립니다.
 2. Render 같은 Docker 지원 서비스에서 새 Web Service를 만듭니다.
 3. 이 repo를 연결합니다.
-4. Health check path를 `/api/v1/health`로 둡니다.
+4. `DATABASE_URL`은 PostgreSQL로 설정합니다.
+5. `JWT_SECRET_KEY`를 운영용 secret으로 설정합니다.
+6. 배포 전 `python -m alembic upgrade head`를 실행합니다.
+7. Health check path를 `/api/v1/health`로 둡니다.
 
-초기 MVP는 SQLite로 실행할 수 있지만, 실제 운영에서는 `DATABASE_URL`을 PostgreSQL로 바꾸는 것을 권장합니다.
-
-PostgreSQL 예시:
-
-```text
-DATABASE_URL=postgresql+psycopg://user:password@host:5432/adhd_todo
-AUTO_CREATE_TABLES=false
-```
-
-마이그레이션:
-
-```bash
-alembic upgrade head
-```
-
-로컬 SQLite에서 빠르게 확인할 때는 `AUTO_CREATE_TABLES=true`를 유지하면 앱 시작 시 테이블을 자동 생성합니다. 운영에서는 `AUTO_CREATE_TABLES=false`로 두고 Alembic을 사용하세요.
+초기 MVP는 SQLite로 실행할 수 있지만, 실제 운영에서는 PostgreSQL을 권장합니다.
 
 ## yangtheory.site로 열기
-
-현재 `yangtheory.site`와 `www.yangtheory.site`가 어떤 공인 IP를 바라보고 있다면, 그 서버에서 이 API를 실행하고 80/443 포트를 연결하면 됩니다.
 
 서버에서 API 실행:
 
@@ -221,6 +307,7 @@ cd /path/to/adhd-todo-api
 python -m venv .venv
 source .venv/bin/activate
 pip install .
+python -m alembic upgrade head
 uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -239,17 +326,9 @@ HTTPS 적용:
 sudo certbot --nginx -d yangtheory.site -d www.yangtheory.site
 ```
 
-이후 접속 주소:
-
-```text
-https://yangtheory.site/
-https://yangtheory.site/docs
-```
-
 ## 다음 개발 순서
 
-1. 사용자 인증 추가
-2. Render/Railway/Fly 배포 시 PostgreSQL 연결
-3. 제안 생성 로직을 LLM 서비스 구현체로 추가
-4. 세션별 반응 패턴 기반 난이도 조절
-5. 프론트엔드에서 Brain Dump 입력과 Suggestion 선택 UI 연결
+1. PostgreSQL 운영 DB 연결 및 배포 파이프라인 정리
+2. rule-based suggestion generator를 LLM 구현체로 교체 가능한 인터페이스로 확장
+3. feedback 패턴 기반 난이도 조절
+4. 프론트엔드에서 Brain Dump 입력과 Suggestion 선택 UI 연결

@@ -9,6 +9,7 @@ class SessionCreate(BaseModel):
 
 class SessionRead(BaseModel):
     id: int
+    user_id: int | None
     context_note: str | None
     created_at: datetime
 

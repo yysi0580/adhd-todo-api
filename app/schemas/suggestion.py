@@ -5,8 +5,11 @@ from pydantic import BaseModel
 
 class SuggestionRead(BaseModel):
     id: int
+    user_id: int | None
     session_id: int
     brain_dump_id: int | None
+    parent_suggestion_id: int | None
+    generation_type: str
     title: str
     micro_step: str
     effort_level: str

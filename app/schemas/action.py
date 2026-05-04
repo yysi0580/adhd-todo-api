@@ -31,6 +31,7 @@ class ActionAbort(BaseModel):
 
 class ActionRead(BaseModel):
     id: int
+    user_id: int | None
     session_id: int
     suggestion_id: int | None
     title: str

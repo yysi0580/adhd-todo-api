@@ -1,5 +1,6 @@
 from typing import Protocol
 
+from app.domain.enums import SuggestionGenerationType
 from app.services.suggestion.micro_step_builder import build_micro_step
 from app.services.suggestion.safety_net import SAFETY_NET_ACTIONS
 from app.services.suggestion.smaller import build_smaller_step, build_smaller_steps
@@ -49,11 +50,13 @@ def _ensure_minimum_suggestions(candidates: list[dict[str, str]]) -> list[dict[s
                 "title": title,
                 "micro_step": micro_step,
                 "effort_level": "tiny",
+                "generation_type": SuggestionGenerationType.safety_net.value,
             }
             for title, micro_step in SAFETY_NET_ACTIONS
         ]
 
     if len(candidates) == 1:
+        candidates[0]["generation_type"] = SuggestionGenerationType.original.value
         used_titles = {candidates[0]["title"]}
         for title, micro_step in SAFETY_NET_ACTIONS:
             if title not in used_titles:
@@ -62,7 +65,11 @@ def _ensure_minimum_suggestions(candidates: list[dict[str, str]]) -> list[dict[s
                         "title": title,
                         "micro_step": micro_step,
                         "effort_level": "tiny",
+                        "generation_type": SuggestionGenerationType.safety_net.value,
                     }
                 )
                 break
+    else:
+        for candidate in candidates:
+            candidate["generation_type"] = SuggestionGenerationType.original.value
     return candidates

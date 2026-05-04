@@ -13,3 +13,9 @@ class FeedbackType(StrEnum):
     pass_ = "pass"
     make_smaller = "make_smaller"
     capture_only = "capture_only"
+
+
+class SuggestionGenerationType(StrEnum):
+    original = "original"
+    smaller = "smaller"
+    safety_net = "safety_net"
