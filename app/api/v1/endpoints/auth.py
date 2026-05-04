@@ -15,7 +15,11 @@ router = APIRouter()
 
 @router.post("/register", response_model=UserRead, status_code=201)
 def register(payload: RegisterRequest, db: DbSession = Depends(get_db)):
-    return AuthService(db).register(email=payload.email, password=payload.password)
+    return AuthService(db).register(
+        email=payload.email,
+        password=payload.password,
+        nickname=payload.nickname,
+    )
 
 
 @router.post("/login", response_model=TokenResponse)

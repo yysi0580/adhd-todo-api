@@ -8,10 +8,16 @@ from app.core.security import create_access_token
 def test_register_and_login_success(client: TestClient):
     register_response = client.post(
         "/api/v1/auth/register",
-        json={"email": "auth-success@example.com", "password": "password123"},
+        json={
+            "email": "auth-success@example.com",
+            "password": "password123",
+            "nickname": "시열",
+        },
     )
     assert register_response.status_code == 201
     assert register_response.json()["email"] == "auth-success@example.com"
+    assert register_response.json()["nickname"] == "시열"
+    assert "password_hash" not in register_response.text
 
     login_response = client.post(
         "/api/v1/auth/login",
@@ -48,6 +54,57 @@ def test_users_me_returns_current_user(client: TestClient, auth_headers: dict[st
 
     assert response.status_code == 200
     assert response.json()["email"].endswith("@example.com")
+    assert "nickname" in response.json()
+    assert "password_hash" not in response.text
+
+
+def test_users_me_returns_nickname(client: TestClient):
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "nickname@example.com", "password": "password123", "nickname": "닉네임"},
+    )
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "nickname@example.com", "password": "password123"},
+    )
+
+    response = client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {login_response.json()['access_token']}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["nickname"] == "닉네임"
+
+
+def test_register_rejects_blank_nickname(client: TestClient):
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"email": "blank-nick@example.com", "password": "password123", "nickname": "   "},
+    )
+
+    assert response.status_code == 422
+
+
+def test_existing_user_without_nickname_still_returns_me(
+    client: TestClient,
+):
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "no-nickname@example.com", "password": "password123"},
+    )
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "no-nickname@example.com", "password": "password123"},
+    )
+
+    response = client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {login_response.json()['access_token']}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["nickname"] is None
 
 
 def test_expired_access_token_is_rejected(client: TestClient):

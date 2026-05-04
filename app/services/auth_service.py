@@ -20,7 +20,7 @@ class AuthService:
         self.db = db
         self.users = UserRepository(db)
 
-    def register(self, email: str, password: str) -> User:
+    def register(self, email: str, password: str, nickname: str | None = None) -> User:
         self._validate_password(password)
         if self.users.get_by_email(email):
             raise ValidationDomainError(
@@ -28,7 +28,11 @@ class AuthService:
                 code="EMAIL_ALREADY_REGISTERED",
             )
 
-        user = self.users.create(email=email, password_hash=hash_password(password))
+        user = self.users.create(
+            email=email,
+            password_hash=hash_password(password),
+            nickname=nickname,
+        )
         self.db.commit()
         self.db.refresh(user)
         return user

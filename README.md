@@ -213,9 +213,14 @@ Content-Type: application/json
 
 {
   "email": "me@example.com",
-  "password": "password123"
+  "password": "password123",
+  "nickname": "시열"
 }
 ```
+
+`nickname`은 2~30자이며 앞뒤 공백은 제거됩니다. 기존 계정처럼 nickname이 없는 사용자는
+`/api/v1/users/me`에서 `nickname: null`로 응답할 수 있고, 프론트엔드는 email 앞부분으로
+안전하게 표시합니다. nickname은 아직 unique가 아니며, 수정 API는 다음 단계 TODO입니다.
 
 2. 로그인 후 access/refresh token 받기
 
@@ -356,6 +361,9 @@ POST /api/v1/feedback
 GET  /api/v1/ai/status
 GET  /api/v1/ai/usage/me
 ```
+
+`GET /api/v1/users/me` 응답에는 `id`, `email`, `nickname`, `created_at`, `updated_at`이 포함됩니다.
+비밀번호 해시나 token secret은 응답하지 않습니다.
 
 `PATCH /api/v1/actions/{action_id}`는 제거되었습니다. Action 상태 변경은 `complete`와 `abort` 전용 API만 사용합니다.
 `GET /api/v1/actions/{action_id}`는 본인 action만 조회할 수 있으며, 다른 사용자의 action 접근은 403으로 응답합니다.

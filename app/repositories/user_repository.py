@@ -13,8 +13,12 @@ class UserRepository:
     def get_by_email(self, email: str) -> User | None:
         return self.db.query(User).filter(User.email == email.lower()).first()
 
-    def create(self, email: str, password_hash: str) -> User:
-        user = User(email=email.lower(), password_hash=password_hash)
+    def create(self, email: str, password_hash: str, nickname: str | None = None) -> User:
+        user = User(
+            email=email.lower(),
+            password_hash=password_hash,
+            nickname=nickname,
+        )
         self.db.add(user)
         self.db.flush()
         return user
