@@ -17,10 +17,6 @@ class ActionCreate(BaseModel):
     micro_step: str | None = None
 
 
-class ActionUpdate(BaseModel):
-    status: ActionStatus
-
-
 class ActionComplete(BaseModel):
     note: str | None = None
 

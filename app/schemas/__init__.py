@@ -5,7 +5,6 @@ from app.schemas.action import (
     ActionCreate,
     ActionRead,
     ActionStatus,
-    ActionUpdate,
 )
 from app.schemas.brain_dump import BrainDumpCreate, BrainDumpRead, BrainDumpResponse
 from app.schemas.feedback import FeedbackCreate, FeedbackRead
@@ -18,7 +17,6 @@ __all__ = [
     "ActionComplete",
     "ActionRead",
     "ActionStatus",
-    "ActionUpdate",
     "BrainDumpCreate",
     "BrainDumpRead",
     "BrainDumpResponse",
