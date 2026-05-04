@@ -11,7 +11,7 @@ FastAPI 기반 ADHD 타깃 실행 보조 API입니다.
 - 처음부터 행동 1개만 강제하지 않고 여러 suggestion을 제시합니다.
 - `reaction=do`를 보내면 선택된 suggestion이 하나의 Action으로 수렴합니다.
 - `completed`와 `aborted`는 성공/실패 압박이 아니라 다음 제안을 위한 패턴 데이터입니다.
-- 현재 suggestion 생성은 rule-based이며, 추후 LLM 구현체로 교체할 수 있게 분리돼 있습니다.
+- 현재 suggestion 생성은 rule-based를 기본값으로 사용하고, 환경변수로 AI generator를 선택적으로 켤 수 있습니다.
 
 ## 주요 기능
 
@@ -19,6 +19,7 @@ FastAPI 기반 ADHD 타깃 실행 보조 API입니다.
 - Brain Dump: 정리되지 않은 생각 저장
 - 자동 분해: 쉼표, 줄바꿈, 마침표, "그리고", "또", "해야" 같은 표현 기준 분리
 - Suggestions: 여러 개의 2~5분짜리 행동 후보 생성
+- AI Suggestions: OpenAI Responses API structured outputs 기반의 선택형 micro-step 생성
 - make_smaller: 부담스러운 suggestion을 1~3개의 더 작은 행동으로 재생성
 - Feedback: `do`, `snooze`, `pass`, `make_smaller`, `capture_only` 반응 저장
 - Action: 선택된 suggestion을 실행 상태로 전환하고 `complete` 또는 `abort`
@@ -76,6 +77,10 @@ app/
     action_repository.py
     feedback_repository.py
   services/
+    ai/
+      client.py
+      prompts.py
+      schemas.py
     auth_service.py
     session_service.py
     brain_dump_service.py
@@ -84,6 +89,7 @@ app/
     feedback_service.py
     history_service.py
     suggestion/
+      ai_generator.py
       splitter.py
       micro_step_builder.py
       safety_net.py
@@ -100,6 +106,7 @@ app/
 - Feedback 반응 흐름: `app/services/feedback_service.py`
 - 문장 분해 규칙: `app/services/suggestion/splitter.py`
 - 제안 문구 생성: `app/services/suggestion/micro_step_builder.py`
+- AI 제안 생성: `app/services/ai/`, `app/services/suggestion/ai_generator.py`
 - 더 작게 만들기: `app/services/suggestion/smaller.py`
 - 안전망 행동: `app/services/suggestion/safety_net.py`
 - DB 쿼리: `app/repositories/`
@@ -135,9 +142,13 @@ LOGIN_FAILURE_LIMIT=5
 LOGIN_BLOCK_MINUTES=5
 LOGIN_RATE_LIMIT_PER_MINUTE=20
 BRAIN_DUMP_RATE_LIMIT_PER_MINUTE=60
+OPENAI_API_KEY=
+AI_SUGGESTION_ENABLED=false
+AI_MODEL=gpt-4.1-mini
 ```
 
 운영에서는 `JWT_SECRET_KEY`를 반드시 안전한 값으로 바꾸고, `DATABASE_URL`은 PostgreSQL을 권장합니다.
+`AI_SUGGESTION_ENABLED=true`와 `OPENAI_API_KEY`가 모두 설정된 경우에만 AI suggestion generator가 사용됩니다.
 
 ```text
 DATABASE_URL=postgresql+psycopg://user:password@host:5432/adhd_todo
@@ -290,6 +301,33 @@ POST /api/v1/feedback
 - 모든 session, brain dump, suggestion, action, feedback은 `user_id` 기준으로 보호됩니다.
 - 다른 사용자의 리소스 접근은 `PERMISSION_DENIED` 계열 403 응답으로 처리합니다.
 
+## AI suggestion
+
+기본 동작은 rule-based generator입니다. 운영 또는 실험 환경에서 아래 설정을 켜면 OpenAI Responses API 기반 AI generator가 Brain Dump와 make_smaller suggestion 생성을 담당합니다.
+
+```text
+OPENAI_API_KEY=sk-...
+AI_SUGGESTION_ENABLED=true
+AI_MODEL=gpt-4.1-mini
+```
+
+AI 응답은 Structured Outputs 기반 JSON으로만 받습니다.
+
+```json
+{
+  "suggestions": [
+    {
+      "title": "string",
+      "micro_step": "string",
+      "effort_level": "quiet | gentle | neutral",
+      "reason": "string"
+    }
+  ]
+}
+```
+
+AI는 사용자를 평가하거나 우선순위를 강요하지 않고, 사용자가 고를 수 있는 작은 행동 후보만 생성합니다. OpenAI API 오류, timeout, 비어 있는 응답, 유효하지 않은 structured output이 발생하면 API 요청은 실패하지 않고 rule-based generator로 fallback합니다. Suggestion 응답의 `source` 값은 `ai` 또는 `rule_based`입니다.
+
 ## Feedback reaction
 
 ```text
@@ -357,6 +395,6 @@ sudo certbot --nginx -d yangtheory.site -d www.yangtheory.site
 ## 다음 개발 순서
 
 1. PostgreSQL 운영 DB 연결 및 배포 파이프라인 정리
-2. rule-based suggestion generator를 LLM 구현체로 교체 가능한 인터페이스로 확장
+2. AI suggestion 품질 평가와 프롬프트 버전 관리
 3. feedback 패턴 기반 난이도 조절
 4. 프론트엔드에서 Brain Dump 입력과 Suggestion 선택 UI 연결
