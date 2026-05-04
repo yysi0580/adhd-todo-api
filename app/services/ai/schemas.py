@@ -7,8 +7,11 @@ class SuggestionCandidate(BaseModel):
     title: str
     micro_step: str
     effort_level: Literal["quiet", "gentle", "neutral"]
-    reason: str
+    reason: str | None = None
 
 
-class SuggestionResponse(BaseModel):
+class AISuggestionResponse(BaseModel):
     suggestions: list[SuggestionCandidate]
+
+
+SuggestionResponse = AISuggestionResponse

@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
-from app.services.ai.schemas import SuggestionCandidate, SuggestionResponse
+from app.services.ai.schemas import AISuggestionResponse, SuggestionCandidate
 
 
 class FakeAiClient:
@@ -10,9 +10,9 @@ class FakeAiClient:
         self.api_key = api_key
         self.model = model
 
-    def create_suggestions(self, user_input: str) -> SuggestionResponse:
+    def create_suggestions(self, user_input: str) -> AISuggestionResponse:
         if "부담스럽게" in user_input:
-            return SuggestionResponse(
+            return AISuggestionResponse(
                 suggestions=[
                     SuggestionCandidate(
                         title="파일만 열기",
@@ -22,7 +22,7 @@ class FakeAiClient:
                     )
                 ]
             )
-        return SuggestionResponse(
+        return AISuggestionResponse(
             suggestions=[
                 SuggestionCandidate(
                     title="메일 첫 줄 쓰기",
@@ -41,13 +41,13 @@ class FakeAiClient:
 
 
 class ErrorAiClient(FakeAiClient):
-    def create_suggestions(self, user_input: str) -> SuggestionResponse:
+    def create_suggestions(self, user_input: str) -> AISuggestionResponse:
         raise RuntimeError("AI unavailable")
 
 
 class EmptyAiClient(FakeAiClient):
-    def create_suggestions(self, user_input: str) -> SuggestionResponse:
-        return SuggestionResponse(suggestions=[])
+    def create_suggestions(self, user_input: str) -> AISuggestionResponse:
+        return AISuggestionResponse(suggestions=[])
 
 
 @pytest.fixture(autouse=True)
@@ -107,6 +107,26 @@ def test_ai_disabled_uses_rule_based_generator(
     )
 
 
+def test_ai_enabled_without_api_key_uses_rule_based_generator(
+    client: TestClient,
+    auth_headers: dict[str, str],
+):
+    settings = get_settings()
+    settings.ai_suggestion_enabled = True
+    settings.openai_api_key = None
+
+    response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "교수님 메일 보내야 함"},
+    )
+
+    assert response.status_code == 201
+    assert all(
+        suggestion["source"] == "rule_based" for suggestion in response.json()["suggestions"]
+    )
+
+
 def test_ai_error_falls_back_to_rule_based(
     client: TestClient,
     auth_headers: dict[str, str],
@@ -150,6 +170,31 @@ def test_ai_make_smaller_creates_ai_smaller_suggestions(
     assert smaller[0]["source"] == "ai"
     assert smaller[0]["generation_type"] == "smaller"
     assert smaller[0]["parent_suggestion_id"] == original["id"]
+
+
+def test_ai_make_smaller_error_falls_back_to_rule_based(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch,
+):
+    _enable_ai(monkeypatch, ErrorAiClient)
+    dump_response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "발표 자료 정리하기"},
+    )
+    original = dump_response.json()["suggestions"][0]
+
+    response = client.post(
+        f"/api/v1/suggestions/{original['id']}/make-smaller",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    smaller = response.json()
+    assert 1 <= len(smaller) <= 3
+    assert all(suggestion["source"] == "rule_based" for suggestion in smaller)
+    assert all(suggestion["generation_type"] == "smaller" for suggestion in smaller)
 
 
 def test_ai_invalid_output_falls_back_to_rule_based(

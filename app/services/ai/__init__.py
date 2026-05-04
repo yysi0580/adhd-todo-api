@@ -1,4 +1,4 @@
 from app.services.ai.client import OpenAIResponsesClient
-from app.services.ai.schemas import SuggestionCandidate, SuggestionResponse
+from app.services.ai.schemas import AISuggestionResponse, SuggestionCandidate
 
-__all__ = ["OpenAIResponsesClient", "SuggestionCandidate", "SuggestionResponse"]
+__all__ = ["AISuggestionResponse", "OpenAIResponsesClient", "SuggestionCandidate"]

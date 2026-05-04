@@ -1,7 +1,7 @@
 from openai import OpenAI
 
 from app.services.ai.prompts import AI_SUGGESTION_SYSTEM_PROMPT
-from app.services.ai.schemas import SuggestionResponse
+from app.services.ai.schemas import AISuggestionResponse
 
 
 class OpenAIResponsesClient:
@@ -9,13 +9,13 @@ class OpenAIResponsesClient:
         self.model = model
         self.client = OpenAI(api_key=api_key, timeout=timeout)
 
-    def create_suggestions(self, user_input: str) -> SuggestionResponse:
+    def create_suggestions(self, user_input: str) -> AISuggestionResponse:
         response = self.client.responses.parse(
             model=self.model,
             input=[
                 {"role": "system", "content": AI_SUGGESTION_SYSTEM_PROMPT},
                 {"role": "user", "content": user_input},
             ],
-            text_format=SuggestionResponse,
+            text_format=AISuggestionResponse,
         )
         return response.output_parsed
