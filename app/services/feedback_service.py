@@ -1,12 +1,12 @@
 from sqlalchemy.orm import Session as DbSession
 
-from app.core.exceptions import NotFoundError, ValidationDomainError
+from app.core.exceptions import ValidationDomainError
 from app.domain.enums import FeedbackType, SuggestionGenerationType
 from app.models import Feedback, Suggestion
 from app.repositories.action_repository import ActionRepository
 from app.repositories.feedback_repository import FeedbackRepository
 from app.repositories.suggestion_repository import SuggestionRepository
-from app.services.common import require_session
+from app.services.common import require_action, require_session, require_suggestion
 from app.services.suggestion import SuggestionGenerator
 
 
@@ -88,9 +88,7 @@ class FeedbackService:
         return feedback, smaller_suggestions
 
     def _get_suggestion(self, user_id: int, session_id: int, suggestion_id: int) -> Suggestion:
-        suggestion = self.suggestions.get_for_user(suggestion_id=suggestion_id, user_id=user_id)
-        if suggestion is None:
-            raise NotFoundError("제안을 찾을 수 없습니다.", code="SUGGESTION_NOT_FOUND")
+        suggestion = require_suggestion(self.db, user_id=user_id, suggestion_id=suggestion_id)
         if suggestion.session_id != session_id:
             raise ValidationDomainError(
                 "제안이 해당 세션에 속하지 않습니다.",
@@ -102,9 +100,7 @@ class FeedbackService:
         if action_id is None:
             return
 
-        action = self.actions.get_for_user(action_id=action_id, user_id=user_id)
-        if action is None:
-            raise NotFoundError("액션을 찾을 수 없습니다.", code="ACTION_NOT_FOUND")
+        action = require_action(self.db, user_id=user_id, action_id=action_id)
         if action.session_id != session_id:
             raise ValidationDomainError(
                 "액션이 해당 세션에 속하지 않습니다.",

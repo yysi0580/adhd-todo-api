@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session as DbSession
 from app.core.exceptions import (
     DuplicateActionError,
     InvalidStateTransitionError,
-    NotFoundError,
     ValidationDomainError,
 )
 from app.domain.enums import ActionStatus
@@ -11,7 +10,7 @@ from app.domain.time import utc_now
 from app.models import Action
 from app.repositories.action_repository import ActionRepository
 from app.repositories.suggestion_repository import SuggestionRepository
-from app.services.common import require_session
+from app.services.common import require_action, require_session, require_suggestion
 
 
 class ActionService:
@@ -30,12 +29,10 @@ class ActionService:
     ) -> Action:
         require_session(self.db, user_id=user_id, session_id=session_id)
         suggestion = (
-            self.suggestions.get_for_user(suggestion_id=suggestion_id, user_id=user_id)
+            require_suggestion(self.db, user_id=user_id, suggestion_id=suggestion_id)
             if suggestion_id
             else None
         )
-        if suggestion_id and suggestion is None:
-            raise NotFoundError("제안을 찾을 수 없습니다.", code="SUGGESTION_NOT_FOUND")
         if suggestion and suggestion.session_id != session_id:
             raise ValidationDomainError(
                 "제안이 해당 세션에 속하지 않습니다.",
@@ -88,9 +85,7 @@ class ActionService:
         return action
 
     def _apply_status(self, user_id: int, action_id: int, status: str) -> Action:
-        action = self.actions.get_for_user(action_id=action_id, user_id=user_id)
-        if action is None:
-            raise NotFoundError("액션을 찾을 수 없습니다.", code="ACTION_NOT_FOUND")
+        action = require_action(self.db, user_id=user_id, action_id=action_id)
         if action.status in {ActionStatus.completed.value, ActionStatus.aborted.value}:
             raise InvalidStateTransitionError(
                 "이미 종료된 액션은 다시 변경할 수 없습니다.",

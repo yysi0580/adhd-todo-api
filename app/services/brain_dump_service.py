@@ -1,10 +1,10 @@
 from sqlalchemy.orm import Session as DbSession
 
-from app.core.exceptions import NotFoundError
 from app.models import BrainDump, Session, Suggestion
 from app.repositories.brain_dump_repository import BrainDumpRepository
 from app.repositories.session_repository import SessionRepository
 from app.repositories.suggestion_repository import SuggestionRepository
+from app.services.common import require_session
 from app.services.suggestion.generator import SuggestionGenerator
 
 
@@ -45,7 +45,4 @@ class BrainDumpService:
         if session_id is None:
             return self.sessions.create(user_id=user_id)
 
-        session = self.sessions.get_for_user(session_id=session_id, user_id=user_id)
-        if session is None:
-            raise NotFoundError("세션을 찾을 수 없습니다.", code="SESSION_NOT_FOUND")
-        return session
+        return require_session(self.db, user_id=user_id, session_id=session_id)

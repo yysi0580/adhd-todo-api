@@ -1,10 +1,9 @@
 from sqlalchemy.orm import Session as DbSession
 
-from app.core.exceptions import NotFoundError
 from app.domain.enums import SuggestionGenerationType
 from app.models import Suggestion
 from app.repositories.suggestion_repository import SuggestionRepository
-from app.services.common import require_session
+from app.services.common import require_session, require_suggestion
 from app.services.suggestion.generator import SuggestionGenerator
 
 
@@ -19,9 +18,7 @@ class SuggestionService:
         return self.suggestions.list_by_session(user_id=user_id, session_id=session_id)
 
     def make_smaller(self, user_id: int, suggestion_id: int) -> list[Suggestion]:
-        suggestion = self.suggestions.get_for_user(suggestion_id=suggestion_id, user_id=user_id)
-        if suggestion is None:
-            raise NotFoundError("제안을 찾을 수 없습니다.", code="SUGGESTION_NOT_FOUND")
+        suggestion = require_suggestion(self.db, user_id=user_id, suggestion_id=suggestion_id)
 
         new_suggestions = self.suggestions.create_many(
             user_id=user_id,
