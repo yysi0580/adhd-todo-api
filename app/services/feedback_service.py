@@ -62,9 +62,17 @@ class FeedbackService:
                     code="SUGGESTION_GENERATOR_REQUIRED",
                 )
             items = (
-                self.generator.make_smaller(suggestion.title, suggestion.micro_step)
+                self.generator.make_smaller(
+                    suggestion.title,
+                    suggestion.micro_step,
+                    user_id=user_id,
+                    suggestion_id=suggestion.id,
+                )
                 if hasattr(self.generator, "make_smaller")
-                else self.generator.generate_smaller_steps(suggestion.micro_step)
+                else self.generator.generate_smaller_steps(
+                    suggestion.micro_step,
+                    user_id=user_id,
+                )
             )
             smaller_suggestions = self.suggestions.create_many(
                 user_id=user_id,

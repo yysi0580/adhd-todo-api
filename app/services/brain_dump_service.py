@@ -32,7 +32,7 @@ class BrainDumpService:
             user_id=user_id,
             session_id=session.id,
             brain_dump_id=brain_dump.id,
-            items=self.generator.generate_micro_steps(raw_text),
+            items=self.generator.generate_micro_steps(raw_text, user_id=user_id),
         )
         self.db.commit()
         self.db.refresh(session)

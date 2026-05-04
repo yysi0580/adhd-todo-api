@@ -133,6 +133,26 @@ http://127.0.0.1:8000/docs
 
 ## 환경변수
 
+`.env.example`을 복사해서 `.env`를 만들고 로컬 secret을 입력합니다. `.env`는 Git에 올리지 않습니다.
+
+Windows CMD:
+
+```cmd
+copy .env.example .env
+```
+
+PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+macOS/Linux:
+
+```bash
+cp .env.example .env
+```
+
 ```text
 DATABASE_URL=sqlite:///./adhd_todo.db
 AUTO_CREATE_TABLES=true
@@ -147,10 +167,23 @@ BRAIN_DUMP_RATE_LIMIT_PER_MINUTE=60
 OPENAI_API_KEY=
 AI_SUGGESTION_ENABLED=false
 AI_MODEL=gpt-4.1-mini
+AI_TIMEOUT_SECONDS=30
+AI_MAX_OUTPUT_TOKENS=700
+AI_PROMPT_VERSION=v1
+AI_RATE_LIMIT_PER_USER_PER_MINUTE=10
+AI_RATE_LIMIT_PER_USER_PER_DAY=100
+AI_RATE_LIMIT_ANONYMOUS_PER_IP_PER_MINUTE=5
+AI_CACHE_ENABLED=true
+AI_CACHE_TTL_MINUTES=30
+AI_COST_LOG_ENABLED=true
+AI_COST_INPUT_PER_1M=0.40
+AI_COST_CACHED_INPUT_PER_1M=0.10
+AI_COST_OUTPUT_PER_1M=1.60
 ```
 
 운영에서는 `JWT_SECRET_KEY`를 반드시 안전한 값으로 바꾸고, `DATABASE_URL`은 PostgreSQL을 권장합니다.
 `AI_SUGGESTION_ENABLED=true`와 `OPENAI_API_KEY`가 모두 설정된 경우에만 AI suggestion generator가 사용됩니다.
+프론트엔드 `.env`에는 `OPENAI_API_KEY`를 넣지 않습니다. React는 OpenAI API를 직접 호출하지 않고 FastAPI 백엔드 API만 호출합니다.
 
 ```text
 DATABASE_URL=postgresql+psycopg://user:password@host:5432/adhd_todo
@@ -332,6 +365,14 @@ AI_SUGGESTION_ENABLED=true
 AI_MODEL=gpt-4.1-mini
 ```
 
+Windows에서 환경변수로 넣는 경우:
+
+```cmd
+setx OPENAI_API_KEY "sk-..."
+```
+
+새 환경변수는 기존 터미널/서버 프로세스에 자동 반영되지 않으므로 백엔드 서버를 재시작합니다. 실제 키는 GitHub에 올리지 않습니다.
+
 AI 응답은 Structured Outputs 기반 JSON으로만 받습니다.
 
 ```json
@@ -348,6 +389,24 @@ AI 응답은 Structured Outputs 기반 JSON으로만 받습니다.
 ```
 
 AI는 사용자를 평가하거나 우선순위를 강요하지 않고, 사용자가 고를 수 있는 작은 행동 후보만 생성하도록 설계되어 있습니다. OpenAI API 오류, timeout, 비어 있는 응답, 유효하지 않은 structured output이 발생하면 API 요청은 실패하지 않고 rule-based generator로 fallback합니다. Suggestion 응답의 `source` 값은 `ai` 또는 `rule_based`입니다.
+
+AI 비용 통제:
+
+- 로그인 사용자는 기본 분당 10회, 하루 100회로 AI 호출이 제한됩니다.
+- 비로그인 사용자는 추후 확장을 위해 IP 기준 분당 5회 구조를 준비했습니다.
+- 동일 사용자/모델/prompt version/입력 hash 기준으로 기본 30분 캐시합니다.
+- 캐시 hit이면 OpenAI를 다시 호출하지 않습니다.
+- 사용량은 logger로 남기며, 추후 `AiUsageLog` DB 테이블로 옮길 수 있게 분리했습니다.
+- 예상 비용은 token usage와 환경변수 가격으로 계산합니다.
+
+OpenAI 가격은 변경될 수 있습니다. 실제 배포 전 반드시 현재 OpenAI pricing을 확인하고 `AI_COST_*` 값을 조정하세요.
+
+AI 실패/제한 처리:
+
+- API key 없음 또는 `AI_SUGGESTION_ENABLED=false`: rule-based generator 사용
+- OpenAI API 오류, timeout, invalid structured output, empty suggestions: rule-based fallback
+- AI rate limit 초과: OpenAI 호출 없이 429 `AI_RATE_LIMIT_EXCEEDED`
+- fallback이 발생해도 Brain Dump → Suggestions → Feedback → Action 응답 shape는 유지
 
 ## Feedback reaction
 
@@ -370,6 +429,19 @@ python -m pytest
 ```
 
 테스트는 메모리 SQLite DB를 사용해서 로컬 개발 DB를 건드리지 않습니다. 현재 핵심 테스트에는 action 상세 조회, 타인 action 403, feedback `do` 응답의 `action` 포함 검증이 들어 있습니다.
+AI 테스트는 실제 OpenAI API를 호출하지 않고 mock client로 검증합니다. 현재 포함된 항목은 AI disabled/key missing fallback, AI success, invalid output fallback, make_smaller fallback, cache 재사용, rate limit, 비용 계산, key 하드코딩 방지입니다.
+
+## 반복 사용 검증
+
+MVP 안정화 시 아래 흐름을 반복 확인합니다.
+
+1. Brain Dump를 여러 번 생성해 session/suggestions가 섞이지 않는지 확인
+2. 같은 suggestion에서 `make_smaller`를 반복 클릭해 nested 구조가 중복처럼 보이지 않는지 확인
+3. 완료된 action을 다시 완료/중단할 수 없는지 확인
+4. 다른 계정으로 session/action 접근 시 403이 반환되는지 확인
+5. access token 만료 후 refresh token으로 재발급되는지 확인
+6. AI rate limit을 낮춘 테스트 설정에서 429 메시지가 반환되는지 확인
+7. OpenAI 오류를 mock으로 발생시켜 rule-based fallback이 유지되는지 확인
 
 ## 배포
 

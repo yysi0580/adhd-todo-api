@@ -20,6 +20,19 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     ai_suggestion_enabled: bool = False
     ai_model: str = "gpt-4.1-mini"
+    ai_timeout_seconds: float = 30
+    ai_max_output_tokens: int = 700
+    ai_prompt_version: str = "v1"
+    ai_rate_limit_per_user_per_minute: int = 10
+    ai_rate_limit_per_user_per_day: int = 100
+    ai_rate_limit_anonymous_per_ip_per_minute: int = 5
+    ai_cache_enabled: bool = True
+    ai_cache_ttl_minutes: int = 30
+    ai_cost_log_enabled: bool = True
+    # OpenAI prices can change. Confirm current pricing before production deploy.
+    ai_cost_input_per_1m: float = 0.40
+    ai_cost_cached_input_per_1m: float = 0.10
+    ai_cost_output_per_1m: float = 1.60
     cors_origins: list[str] = [
         "http://127.0.0.1:5173",
         "http://localhost:5173",

@@ -2,15 +2,21 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
+from app.services.ai.cache import ai_cache
+from app.services.ai.cost import AIUsage, estimate_cost
+from app.services.ai.rate_limit import ai_rate_limiter
 from app.services.ai.schemas import AISuggestionResponse, SuggestionCandidate
 
 
 class FakeAiClient:
-    def __init__(self, api_key: str, model: str):
+    calls = 0
+
+    def __init__(self, api_key: str, model: str, **kwargs):
         self.api_key = api_key
         self.model = model
 
     def create_suggestions(self, user_input: str) -> AISuggestionResponse:
+        type(self).calls += 1
         if "부담스럽게" in user_input:
             return AISuggestionResponse(
                 suggestions=[
@@ -50,16 +56,47 @@ class EmptyAiClient(FakeAiClient):
         return AISuggestionResponse(suggestions=[])
 
 
+class PressureAiClient(FakeAiClient):
+    def create_suggestions(self, user_input: str) -> AISuggestionResponse:
+        return AISuggestionResponse(
+            suggestions=[
+                SuggestionCandidate(
+                    title="반드시 해야 하는 일",
+                    micro_step="실패하지 않게 반드시 해야 한다",
+                    effort_level="neutral",
+                ),
+                SuggestionCandidate(
+                    title="다른 일",
+                    micro_step="다른 일을 시작하기",
+                    effort_level="quiet",
+                ),
+            ]
+        )
+
+
 @pytest.fixture(autouse=True)
 def restore_ai_settings():
     settings = get_settings()
     original_enabled = settings.ai_suggestion_enabled
     original_key = settings.openai_api_key
     original_model = settings.ai_model
+    original_minute = settings.ai_rate_limit_per_user_per_minute
+    original_day = settings.ai_rate_limit_per_user_per_day
+    original_cache = settings.ai_cache_enabled
+    original_cost_log = settings.ai_cost_log_enabled
+    ai_cache.clear()
+    ai_rate_limiter.clear()
+    FakeAiClient.calls = 0
     yield
     settings.ai_suggestion_enabled = original_enabled
     settings.openai_api_key = original_key
     settings.ai_model = original_model
+    settings.ai_rate_limit_per_user_per_minute = original_minute
+    settings.ai_rate_limit_per_user_per_day = original_day
+    settings.ai_cache_enabled = original_cache
+    settings.ai_cost_log_enabled = original_cost_log
+    ai_cache.clear()
+    ai_rate_limiter.clear()
 
 
 def test_ai_enabled_saves_ai_suggestions(
@@ -214,6 +251,89 @@ def test_ai_invalid_output_falls_back_to_rule_based(
     assert all(
         suggestion["source"] == "rule_based" for suggestion in response.json()["suggestions"]
     )
+
+
+def test_ai_pressure_language_falls_back_to_rule_based(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch,
+):
+    _enable_ai(monkeypatch, PressureAiClient)
+
+    response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "교수님 메일 보내야 함"},
+    )
+
+    assert response.status_code == 201
+    assert all(
+        suggestion["source"] == "rule_based" for suggestion in response.json()["suggestions"]
+    )
+
+
+def test_ai_cache_reuses_same_request(
+    client: TestClient, auth_headers: dict[str, str], monkeypatch
+):
+    _enable_ai(monkeypatch, FakeAiClient)
+
+    for _ in range(2):
+        response = client.post(
+            "/api/v1/brain-dumps",
+            headers=auth_headers,
+            json={"raw_text": "교수님 메일 보내고 팀 일정 공유해야 함"},
+        )
+        assert response.status_code == 201
+
+    assert FakeAiClient.calls == 1
+
+
+def test_ai_rate_limit_blocks_openai_call(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch,
+):
+    _enable_ai(monkeypatch, FakeAiClient)
+    settings = get_settings()
+    settings.ai_cache_enabled = False
+    settings.ai_rate_limit_per_user_per_minute = 1
+
+    first_response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "첫 번째 요청"},
+    )
+    second_response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "두 번째 요청"},
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 429
+    assert second_response.json()["code"] == "AI_RATE_LIMIT_EXCEEDED"
+    assert FakeAiClient.calls == 1
+
+
+def test_ai_cost_calculation_uses_cached_token_price():
+    cost = estimate_cost(
+        AIUsage(input_tokens=1000, cached_tokens=250, output_tokens=500, total_tokens=1500),
+        input_price_per_1m=0.40,
+        cached_input_price_per_1m=0.10,
+        output_price_per_1m=1.60,
+    )
+
+    assert cost == pytest.approx(0.001125)
+
+
+def test_openai_api_key_is_not_hardcoded():
+    source_files = [
+        "app/core/config.py",
+        "app/services/ai/client.py",
+        ".env.example",
+    ]
+    for path in source_files:
+        assert "sk-" not in open(path, encoding="utf-8").read()
 
 
 def _enable_ai(monkeypatch, fake_client: type[FakeAiClient]) -> None:

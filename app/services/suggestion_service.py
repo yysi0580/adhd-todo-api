@@ -21,9 +21,9 @@ class SuggestionService:
         suggestion = require_suggestion(self.db, user_id=user_id, suggestion_id=suggestion_id)
 
         items = (
-            self.generator.make_smaller(suggestion.title, suggestion.micro_step)
+            self.generator.make_smaller(suggestion.title, suggestion.micro_step, user_id=user_id)
             if hasattr(self.generator, "make_smaller")
-            else self.generator.generate_smaller_steps(suggestion.micro_step)
+            else self.generator.generate_smaller_steps(suggestion.micro_step, user_id=user_id)
         )
 
         new_suggestions = self.suggestions.create_many(
