@@ -107,6 +107,32 @@ def test_finished_action_cannot_be_changed_again(
     assert second_response.json()["code"] == "ACTION_ALREADY_FINISHED"
 
 
+def test_aborted_action_cannot_be_completed(client: TestClient, auth_headers: dict[str, str]):
+    session_id, suggestion_id = _create_suggestion(client, auth_headers)
+    action_response = client.post(
+        "/api/v1/actions",
+        headers=auth_headers,
+        json={"session_id": session_id, "suggestion_id": suggestion_id},
+    )
+    action_id = action_response.json()["id"]
+
+    client.post(f"/api/v1/actions/{action_id}/abort", headers=auth_headers)
+    second_response = client.post(f"/api/v1/actions/{action_id}/complete", headers=auth_headers)
+
+    assert second_response.status_code == 400
+    assert second_response.json()["code"] == "ACTION_ALREADY_FINISHED"
+
+
+def test_patch_action_endpoint_is_removed(client: TestClient, auth_headers: dict[str, str]):
+    response = client.patch(
+        "/api/v1/actions/1",
+        headers=auth_headers,
+        json={"status": "completed"},
+    )
+
+    assert response.status_code in {404, 405}
+
+
 def test_other_user_cannot_access_action(client: TestClient, auth_headers: dict[str, str]):
     session_id, suggestion_id = _create_suggestion(client, auth_headers)
     action_response = client.post(
@@ -121,4 +147,4 @@ def test_other_user_cannot_access_action(client: TestClient, auth_headers: dict[
         headers=other_headers,
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 403

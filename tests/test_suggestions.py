@@ -64,4 +64,4 @@ def test_other_user_cannot_make_suggestion_smaller(
         headers=other_headers,
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 403

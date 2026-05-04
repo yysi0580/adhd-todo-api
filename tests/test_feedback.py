@@ -126,4 +126,4 @@ def test_other_user_cannot_feedback_on_suggestion(
         json={"session_id": session_id, "suggestion_id": suggestion_id, "reaction": "pass"},
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 403

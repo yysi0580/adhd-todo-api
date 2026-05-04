@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+from app.core.config import get_settings
+
 
 def test_brain_dump_creates_session_and_suggestions(
     client: TestClient,
@@ -50,3 +52,26 @@ def test_brain_dump_uses_existing_session_when_session_id_is_given(
 
     assert response.status_code == 201
     assert response.json()["session"]["id"] == session_id
+
+
+def test_brain_dump_rate_limit_applies(client: TestClient, auth_headers: dict[str, str]):
+    settings = get_settings()
+    original_limit = settings.brain_dump_rate_limit_per_minute
+    settings.brain_dump_rate_limit_per_minute = 1
+    try:
+        first_response = client.post(
+            "/api/v1/brain-dumps",
+            headers=auth_headers,
+            json={"raw_text": "첫 번째 입력"},
+        )
+        second_response = client.post(
+            "/api/v1/brain-dumps",
+            headers=auth_headers,
+            json={"raw_text": "두 번째 입력"},
+        )
+    finally:
+        settings.brain_dump_rate_limit_per_minute = original_limit
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 429
+    assert second_response.json()["detail"]["code"] == "RATE_LIMITED"

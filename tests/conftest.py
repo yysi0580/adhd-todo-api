@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
 from app.core.db import Base, get_db
+from app.core.limits import reset_limits
 from app.main import app
 
 engine = create_engine(
@@ -43,6 +44,13 @@ def client() -> TestClient:
 @pytest.fixture()
 def auth_headers(client: TestClient) -> dict[str, str]:
     return register_and_login(client)
+
+
+@pytest.fixture(autouse=True)
+def clear_in_memory_limits() -> Generator:
+    reset_limits()
+    yield
+    reset_limits()
 
 
 def register_and_login(client: TestClient, email: str | None = None) -> dict[str, str]:

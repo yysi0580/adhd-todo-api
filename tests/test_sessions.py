@@ -32,4 +32,4 @@ def test_other_user_cannot_read_session(client: TestClient, auth_headers: dict[s
         headers=other_headers,
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 403
