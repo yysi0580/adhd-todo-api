@@ -1,6 +1,7 @@
 from typing import Protocol
 
-from app.domain.enums import SuggestionGenerationType
+from app.core.config import get_settings
+from app.domain.enums import SuggestionGenerationType, SuggestionSource
 from app.services.suggestion.micro_step_builder import build_micro_step
 from app.services.suggestion.safety_net import SAFETY_NET_ACTIONS
 from app.services.suggestion.smaller import build_smaller_step, build_smaller_steps
@@ -39,10 +40,6 @@ class RuleBasedSuggestionGenerator:
         return build_smaller_steps(text, limit=limit)
 
 
-def get_suggestion_generator() -> SuggestionGenerator:
-    return RuleBasedSuggestionGenerator()
-
-
 def _ensure_minimum_suggestions(candidates: list[dict[str, str]]) -> list[dict[str, str]]:
     if not candidates:
         return [
@@ -51,6 +48,7 @@ def _ensure_minimum_suggestions(candidates: list[dict[str, str]]) -> list[dict[s
                 "micro_step": micro_step,
                 "effort_level": "tiny",
                 "generation_type": SuggestionGenerationType.safety_net.value,
+                "source": SuggestionSource.rule_based.value,
             }
             for title, micro_step in SAFETY_NET_ACTIONS
         ]
@@ -66,10 +64,29 @@ def _ensure_minimum_suggestions(candidates: list[dict[str, str]]) -> list[dict[s
                         "micro_step": micro_step,
                         "effort_level": "tiny",
                         "generation_type": SuggestionGenerationType.safety_net.value,
+                        "source": SuggestionSource.rule_based.value,
                     }
                 )
                 break
     else:
         for candidate in candidates:
             candidate["generation_type"] = SuggestionGenerationType.original.value
+    for candidate in candidates:
+        candidate.setdefault("source", SuggestionSource.rule_based.value)
     return candidates
+
+
+def get_suggestion_generator() -> SuggestionGenerator:
+    settings = get_settings()
+    if settings.ai_suggestion_enabled and settings.openai_api_key:
+        from app.services.ai.client import OpenAIResponsesClient
+        from app.services.suggestion.ai_generator import AiSuggestionGenerator
+
+        return AiSuggestionGenerator(
+            ai_client=OpenAIResponsesClient(
+                api_key=settings.openai_api_key,
+                model=settings.ai_model,
+            ),
+            fallback=RuleBasedSuggestionGenerator(),
+        )
+    return RuleBasedSuggestionGenerator()

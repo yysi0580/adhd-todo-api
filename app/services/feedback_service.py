@@ -59,6 +59,11 @@ class FeedbackService:
                     "더 작은 제안을 생성할 수 없습니다.",
                     code="SUGGESTION_GENERATOR_REQUIRED",
                 )
+            items = (
+                self.generator.make_smaller(suggestion.title, suggestion.micro_step)
+                if hasattr(self.generator, "make_smaller")
+                else self.generator.generate_smaller_steps(suggestion.micro_step)
+            )
             smaller_suggestions = self.suggestions.create_many(
                 user_id=user_id,
                 session_id=session_id,
@@ -69,7 +74,7 @@ class FeedbackService:
                         **item,
                         "generation_type": SuggestionGenerationType.smaller.value,
                     }
-                    for item in self.generator.generate_smaller_steps(suggestion.micro_step)
+                    for item in items
                 ],
             )
 

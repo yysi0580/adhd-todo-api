@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     login_block_minutes: int = 5
     login_rate_limit_per_minute: int = 20
     brain_dump_rate_limit_per_minute: int = 60
+    openai_api_key: str | None = None
+    ai_suggestion_enabled: bool = False
+    ai_model: str = "gpt-4.1-mini"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

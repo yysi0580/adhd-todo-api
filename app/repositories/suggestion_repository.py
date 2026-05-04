@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session as DbSession
 
-from app.domain.enums import SuggestionGenerationType
+from app.domain.enums import SuggestionGenerationType, SuggestionSource
 from app.models import Suggestion
 
 
@@ -36,6 +36,7 @@ class SuggestionRepository:
         effort_level: str,
         parent_suggestion_id: int | None = None,
         generation_type: str = SuggestionGenerationType.original.value,
+        source: str = SuggestionSource.rule_based.value,
     ) -> Suggestion:
         suggestion = Suggestion(
             user_id=user_id,
@@ -43,6 +44,7 @@ class SuggestionRepository:
             brain_dump_id=brain_dump_id,
             parent_suggestion_id=parent_suggestion_id,
             generation_type=generation_type,
+            source=source,
             title=title,
             micro_step=micro_step,
             effort_level=effort_level,
@@ -72,6 +74,7 @@ class SuggestionRepository:
                     "generation_type",
                     SuggestionGenerationType.original.value,
                 ),
+                source=item.get("source", SuggestionSource.rule_based.value),
             )
             for item in items
         ]

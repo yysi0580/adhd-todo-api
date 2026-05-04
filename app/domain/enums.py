@@ -19,3 +19,8 @@ class SuggestionGenerationType(StrEnum):
     original = "original"
     smaller = "smaller"
     safety_net = "safety_net"
+
+
+class SuggestionSource(StrEnum):
+    rule_based = "rule_based"
+    ai = "ai"

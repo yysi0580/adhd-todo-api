@@ -4,7 +4,7 @@ from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
-from app.domain.enums import SuggestionGenerationType
+from app.domain.enums import SuggestionGenerationType, SuggestionSource
 from app.domain.time import utc_now
 from app.models.session import Session
 from app.models.user import User
@@ -29,6 +29,7 @@ class Suggestion(Base):
         String(30),
         default=SuggestionGenerationType.original.value,
     )
+    source: Mapped[str] = mapped_column(String(30), default=SuggestionSource.rule_based.value)
     title: Mapped[str] = mapped_column(String(160))
     micro_step: Mapped[str] = mapped_column(Text)
     effort_level: Mapped[str] = mapped_column(String(20), default="tiny")
