@@ -30,10 +30,11 @@ class AIStatusService:
         today = now - timedelta(days=1)
         month = now - timedelta(days=30)
         return {
-            "todayCalls": self.usage_logs.count_since(today, user_id=user_id),
+            "todayCalls": self.usage_logs.user_actual_openai_calls_since(today, user_id=user_id),
             "todayEstimatedCost": self.usage_logs.cost_since(today, user_id=user_id),
             "monthlyEstimatedCost": self.usage_logs.cost_since(month, user_id=user_id),
             "cacheHits": self.usage_logs.cache_hits_since(today, user_id=user_id),
             "fallbackCount": self.usage_logs.fallback_count_since(today, user_id=user_id),
+            "fallbackReasons": self.usage_logs.fallback_reasons_since(today, user_id=user_id),
             "lastUsedAt": self.usage_logs.last_used_at(user_id),
         }

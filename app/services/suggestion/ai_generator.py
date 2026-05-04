@@ -21,6 +21,10 @@ from app.services.suggestion.generator import SuggestionGenerator
 logger = logging.getLogger(__name__)
 
 
+class _AIProviderFailureLogged(Exception):
+    pass
+
+
 class AiSuggestionGenerator:
     def __init__(self, ai_client: OpenAIResponsesClient, fallback: SuggestionGenerator, db=None):
         self.ai_client = ai_client
@@ -52,13 +56,18 @@ class AiSuggestionGenerator:
             logger.info(
                 "AI guardrail triggered; falling back to rule-based generator: %s", exc.code
             )
-            self._log_failure(user_id, "brain_dump", exc.code)
+            self._log_failure(user_id, "brain_dump", exc.code, actual_openai_call=False)
+            return self.fallback.generate_micro_steps(raw_text, limit=5, user_id=user_id)
+        except _AIProviderFailureLogged:
+            logger.exception("AI provider call failed; falling back to rule-based generator")
             return self.fallback.generate_micro_steps(raw_text, limit=5, user_id=user_id)
         except Exception:
             logger.exception(
                 "AI suggestion generation failed; falling back to rule-based generator"
             )
-            self._log_failure(user_id, "brain_dump", "AI_SERVICE_ERROR")
+            self._log_failure(
+                user_id, "brain_dump", "AI_INVALID_RESPONSE", actual_openai_call=False
+            )
             return self.fallback.generate_micro_steps(raw_text, limit=5, user_id=user_id)
 
     def make_smaller(
@@ -86,13 +95,18 @@ class AiSuggestionGenerator:
             logger.info(
                 "AI guardrail triggered; falling back to rule-based generator: %s", exc.code
             )
-            self._log_failure(user_id, "make_smaller", exc.code)
+            self._log_failure(user_id, "make_smaller", exc.code, actual_openai_call=False)
+            return self.fallback.generate_smaller_steps(micro_step, limit=3, user_id=user_id)
+        except _AIProviderFailureLogged:
+            logger.exception("AI provider call failed; falling back to rule-based generator")
             return self.fallback.generate_smaller_steps(micro_step, limit=3, user_id=user_id)
         except Exception:
             logger.exception(
                 "AI make_smaller generation failed; falling back to rule-based generator"
             )
-            self._log_failure(user_id, "make_smaller", "AI_SERVICE_ERROR")
+            self._log_failure(
+                user_id, "make_smaller", "AI_INVALID_RESPONSE", actual_openai_call=False
+            )
             return self.fallback.generate_smaller_steps(micro_step, limit=3, user_id=user_id)
 
     def generate_micro_steps(
@@ -131,6 +145,7 @@ class AiSuggestionGenerator:
                     usage=AIUsage(),
                     cache_hit=True,
                     success=True,
+                    actual_openai_call=False,
                 )
                 return cached
 
@@ -138,7 +153,16 @@ class AiSuggestionGenerator:
         if self.budget_guard is not None:
             self.budget_guard.enforce(user_id)
 
-        result = self.ai_client.create_suggestions(prompt)
+        try:
+            result = self.ai_client.create_suggestions(prompt)
+        except Exception as exc:
+            self._log_failure(
+                user_id,
+                feature_name,
+                "AI_SERVICE_ERROR",
+                actual_openai_call=True,
+            )
+            raise _AIProviderFailureLogged from exc
         response = getattr(result, "response", result)
         usage = getattr(result, "usage", AIUsage())
 
@@ -148,6 +172,7 @@ class AiSuggestionGenerator:
             usage=usage,
             cache_hit=False,
             success=True,
+            actual_openai_call=True,
         )
 
         if settings.ai_cache_enabled:
@@ -190,6 +215,7 @@ class AiSuggestionGenerator:
         usage: AIUsage,
         cache_hit: bool,
         success: bool,
+        actual_openai_call: bool,
         error_code: str | None = None,
     ) -> None:
         settings = get_settings()
@@ -214,6 +240,7 @@ class AiSuggestionGenerator:
                 total_tokens=usage.total_tokens,
                 estimated_cost=estimated_cost,
                 cache_hit=cache_hit,
+                actual_openai_call=actual_openai_call,
                 success=success,
                 error_code=error_code,
             )
@@ -230,25 +257,36 @@ class AiSuggestionGenerator:
                 total_tokens=usage.total_tokens,
                 estimated_cost=estimated_cost,
                 cache_hit=cache_hit,
-                source=(
-                    SuggestionSource.ai.value
-                    if not error_code
-                    else SuggestionSource.rule_based.value
-                ),
+                actual_openai_call=actual_openai_call,
+                source=self._usage_source(cache_hit=cache_hit, success=success),
                 success=success,
                 fallback_used=not success,
                 error_code=error_code,
             )
 
-    def _log_failure(self, user_id: int | None, feature_name: str, error_code: str) -> None:
+    def _log_failure(
+        self,
+        user_id: int | None,
+        feature_name: str,
+        error_code: str,
+        actual_openai_call: bool,
+    ) -> None:
         self._log_usage(
             user_id=user_id,
             feature_name=feature_name,
             usage=AIUsage(),
             cache_hit=False,
             success=False,
+            actual_openai_call=actual_openai_call,
             error_code=error_code,
         )
+
+    def _usage_source(self, cache_hit: bool, success: bool) -> str:
+        if cache_hit:
+            return "ai_cache"
+        if success:
+            return SuggestionSource.ai.value
+        return "fallback"
 
     def _normalize_candidates(
         self,

@@ -409,9 +409,11 @@ AI 비용 통제:
 
 - 로그인 사용자는 기본 분당 10회, 하루 100회로 AI 호출이 제한됩니다.
 - 비로그인 사용자는 추후 확장을 위해 IP 기준 분당 5회 구조를 준비했습니다.
-- 전체 일일 호출 수, 전체 일일 예상 비용, 사용자별 일일 예상 비용, 전체 월간 예상 비용 제한을 적용합니다.
+- 전체 일일 호출 수는 `actual_openai_call=true`인 실제 OpenAI 호출만 기준으로 계산합니다.
+- 전체 일일 예상 비용, 사용자별 일일 예상 비용, 전체 월간 예상 비용 제한을 적용합니다.
 - 동일 사용자/모델/prompt version/입력 hash 기준으로 기본 30분 캐시합니다.
-- 캐시 hit이면 OpenAI를 다시 호출하지 않습니다.
+- 캐시 hit이면 OpenAI를 다시 호출하지 않고 `actual_openai_call=false`, `source=ai_cache`로 기록합니다.
+- rule-based fallback은 사용자 흐름을 유지하기 위한 안전장치이며 실제 호출 제한을 소모하지 않습니다.
 - AI 성공, 실패, fallback, cache hit 사용량은 `AiUsageLog` DB 테이블에 저장합니다.
 - 예상 비용은 token usage와 환경변수 가격으로 계산합니다.
 - Settings 화면과 운영 점검용으로 `/api/v1/ai/status`, `/api/v1/ai/usage/me`를 제공합니다. API key 문자열은 응답하지 않습니다.
@@ -424,6 +426,9 @@ AI 실패/제한 처리:
 - OpenAI API 오류, timeout, invalid structured output, empty suggestions: rule-based fallback
 - AI rate/budget limit 초과: OpenAI 호출 없이 rule-based fallback
 - fallback이 발생해도 Brain Dump → Suggestions → Feedback → Action 응답 shape는 유지
+
+`AiUsageLog.source`는 운영 분석용으로 `ai`, `ai_cache`, `fallback`, `rule_based` 값을 사용할 수 있습니다. Suggestion 응답의 `source`는 기존 프론트 호환을 위해 `ai` 또는 `rule_based` 중심으로 유지합니다.
+`today`/`monthly` 필드는 API 호환을 위해 이름을 유지하지만, 실제 기준은 calendar day/month가 아니라 최근 24시간과 최근 30일입니다. calendar day 기준 집계가 필요하면 추후 timezone 기반 집계를 추가합니다.
 
 AI status 응답 예:
 
@@ -449,6 +454,10 @@ AI usage 응답 예:
   "monthlyEstimatedCost": 0.0,
   "cacheHits": 0,
   "fallbackCount": 0,
+  "fallbackReasons": {
+    "AI_BUDGET_EXCEEDED": 1,
+    "AI_INVALID_RESPONSE": 1
+  },
   "lastUsedAt": null
 }
 ```

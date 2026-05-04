@@ -16,7 +16,10 @@ class AIBudgetGuard:
         day_start = now - timedelta(days=1)
         month_start = now - timedelta(days=30)
 
-        if self.usage_logs.count_since(day_start) >= settings.ai_daily_global_limit:
+        if (
+            self.usage_logs.count_actual_openai_calls_since(day_start)
+            >= settings.ai_daily_global_limit
+        ):
             raise AIDailyLimitExceededError(
                 "AI 일일 호출 제한에 도달했습니다. 기본 제안기로 계속 진행합니다.",
                 code="AI_DAILY_LIMIT_EXCEEDED",

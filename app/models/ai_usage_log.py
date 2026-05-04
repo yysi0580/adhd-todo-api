@@ -21,6 +21,7 @@ class AiUsageLog(Base):
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
     estimated_cost: Mapped[float] = mapped_column(Float, default=0.0)
     cache_hit: Mapped[bool] = mapped_column(Boolean, default=False)
+    actual_openai_call: Mapped[bool] = mapped_column(Boolean, default=False)
     source: Mapped[str] = mapped_column(String(30), default="ai")
     success: Mapped[bool] = mapped_column(Boolean, default=True)
     fallback_used: Mapped[bool] = mapped_column(Boolean, default=False)

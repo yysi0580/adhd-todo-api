@@ -20,4 +20,5 @@ class AIUsageMeResponse(BaseModel):
     monthlyEstimatedCost: float
     cacheHits: int
     fallbackCount: int
+    fallbackReasons: dict[str, int]
     lastUsedAt: datetime | None

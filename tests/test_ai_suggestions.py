@@ -294,6 +294,10 @@ def test_ai_cache_reuses_same_request(
         assert response.status_code == 201
 
     assert FakeAiClient.calls == 1
+    usage_response = client.get("/api/v1/ai/usage/me", headers=auth_headers)
+    usage_body = usage_response.json()
+    assert usage_body["todayCalls"] == 1
+    assert usage_body["cacheHits"] >= 1
 
 
 def test_ai_rate_limit_blocks_openai_call(
@@ -323,6 +327,9 @@ def test_ai_rate_limit_blocks_openai_call(
         suggestion["source"] == "rule_based" for suggestion in second_response.json()["suggestions"]
     )
     assert FakeAiClient.calls == 1
+    usage_body = client.get("/api/v1/ai/usage/me", headers=auth_headers).json()
+    assert usage_body["todayCalls"] == 1
+    assert usage_body["fallbackReasons"]["AI_RATE_LIMIT_EXCEEDED"] >= 1
 
 
 def test_ai_budget_guard_falls_back_without_openai_call(
@@ -346,6 +353,87 @@ def test_ai_budget_guard_falls_back_without_openai_call(
         suggestion["source"] == "rule_based" for suggestion in response.json()["suggestions"]
     )
     assert FakeAiClient.calls == 0
+    usage_body = client.get("/api/v1/ai/usage/me", headers=auth_headers).json()
+    assert usage_body["todayCalls"] == 0
+    assert usage_body["fallbackReasons"]["AI_DAILY_LIMIT_EXCEEDED"] >= 1
+
+
+def test_ai_daily_cost_guard_falls_back_without_openai_call(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch,
+):
+    _enable_ai(monkeypatch, FakeAiClient)
+    settings = get_settings()
+    settings.ai_cache_enabled = False
+    settings.ai_daily_global_cost_limit_usd = 0
+
+    response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "일일 비용 제한 요청"},
+    )
+
+    assert response.status_code == 201
+    assert all(
+        suggestion["source"] == "rule_based" for suggestion in response.json()["suggestions"]
+    )
+    assert FakeAiClient.calls == 0
+    usage_body = client.get("/api/v1/ai/usage/me", headers=auth_headers).json()
+    assert usage_body["todayCalls"] == 0
+    assert usage_body["fallbackReasons"]["AI_BUDGET_EXCEEDED"] >= 1
+
+
+def test_ai_monthly_cost_guard_falls_back_without_openai_call(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch,
+):
+    _enable_ai(monkeypatch, FakeAiClient)
+    settings = get_settings()
+    settings.ai_cache_enabled = False
+    settings.ai_daily_global_cost_limit_usd = 999
+    settings.ai_per_user_daily_cost_limit_usd = 999
+    settings.ai_monthly_global_cost_limit_usd = 0
+
+    response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "월간 비용 제한 요청"},
+    )
+
+    assert response.status_code == 201
+    assert all(
+        suggestion["source"] == "rule_based" for suggestion in response.json()["suggestions"]
+    )
+    assert FakeAiClient.calls == 0
+    usage_body = client.get("/api/v1/ai/usage/me", headers=auth_headers).json()
+    assert usage_body["todayCalls"] == 0
+    assert usage_body["fallbackReasons"]["AI_MONTHLY_BUDGET_EXCEEDED"] >= 1
+
+
+def test_ai_provider_error_counts_as_actual_call_and_fallback_reason(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch,
+):
+    _enable_ai(monkeypatch, ErrorAiClient)
+    settings = get_settings()
+    settings.ai_cache_enabled = False
+
+    response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "AI 오류 fallback 요청"},
+    )
+
+    assert response.status_code == 201
+    assert all(
+        suggestion["source"] == "rule_based" for suggestion in response.json()["suggestions"]
+    )
+    usage_body = client.get("/api/v1/ai/usage/me", headers=auth_headers).json()
+    assert usage_body["todayCalls"] == 1
+    assert usage_body["fallbackReasons"]["AI_SERVICE_ERROR"] >= 1
 
 
 def test_ai_status_and_usage_api_returns_safe_state(
@@ -374,6 +462,7 @@ def test_ai_status_and_usage_api_returns_safe_state(
     usage_body = usage_response.json()
     assert usage_body["todayCalls"] >= 1
     assert usage_body["todayEstimatedCost"] >= 0
+    assert "fallbackReasons" in usage_body
 
 
 def test_ai_cost_calculation_uses_cached_token_price():

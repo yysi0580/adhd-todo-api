@@ -22,6 +22,7 @@ class AiUsageLogRepository:
         total_tokens: int = 0,
         estimated_cost: float = 0.0,
         cache_hit: bool = False,
+        actual_openai_call: bool = False,
         source: str = "ai",
         success: bool = True,
         fallback_used: bool = False,
@@ -38,6 +39,7 @@ class AiUsageLogRepository:
             total_tokens=total_tokens,
             estimated_cost=estimated_cost,
             cache_hit=cache_hit,
+            actual_openai_call=actual_openai_call,
             source=source,
             success=success,
             fallback_used=fallback_used,
@@ -52,6 +54,18 @@ class AiUsageLogRepository:
         if user_id is not None:
             query = query.filter(AiUsageLog.user_id == user_id)
         return int(query.scalar() or 0)
+
+    def count_actual_openai_calls_since(self, since: datetime, user_id: int | None = None) -> int:
+        query = self.db.query(func.count(AiUsageLog.id)).filter(
+            AiUsageLog.created_at >= since,
+            AiUsageLog.actual_openai_call.is_(True),
+        )
+        if user_id is not None:
+            query = query.filter(AiUsageLog.user_id == user_id)
+        return int(query.scalar() or 0)
+
+    def user_actual_openai_calls_since(self, since: datetime, user_id: int) -> int:
+        return self.count_actual_openai_calls_since(since, user_id=user_id)
 
     def cost_since(self, since: datetime, user_id: int | None = None) -> float:
         query = self.db.query(func.coalesce(func.sum(AiUsageLog.estimated_cost), 0.0)).filter(
@@ -84,6 +98,20 @@ class AiUsageLogRepository:
             .scalar()
             or 0
         )
+
+    def fallback_reasons_since(self, since: datetime, user_id: int) -> dict[str, int]:
+        rows = (
+            self.db.query(AiUsageLog.error_code, func.count(AiUsageLog.id))
+            .filter(
+                AiUsageLog.user_id == user_id,
+                AiUsageLog.created_at >= since,
+                AiUsageLog.fallback_used.is_(True),
+                AiUsageLog.error_code.isnot(None),
+            )
+            .group_by(AiUsageLog.error_code)
+            .all()
+        )
+        return {str(error_code): int(count) for error_code, count in rows if error_code}
 
     def last_used_at(self, user_id: int) -> datetime | None:
         return (
