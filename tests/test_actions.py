@@ -29,6 +29,42 @@ def test_select_suggestion_as_action(client: TestClient, auth_headers: dict[str,
     assert body["micro_step"]
 
 
+def test_read_action_endpoint_returns_owned_action(
+    client: TestClient,
+    auth_headers: dict[str, str],
+):
+    session_id, suggestion_id = _create_suggestion(client, auth_headers)
+    action_response = client.post(
+        "/api/v1/actions",
+        headers=auth_headers,
+        json={"session_id": session_id, "suggestion_id": suggestion_id},
+    )
+    action_id = action_response.json()["id"]
+
+    read_response = client.get(f"/api/v1/actions/{action_id}", headers=auth_headers)
+
+    assert read_response.status_code == 200
+    assert read_response.json()["id"] == action_id
+    assert read_response.json()["status"] == "active"
+
+
+def test_other_user_cannot_read_action(client: TestClient, auth_headers: dict[str, str]):
+    session_id, suggestion_id = _create_suggestion(client, auth_headers)
+    action_response = client.post(
+        "/api/v1/actions",
+        headers=auth_headers,
+        json={"session_id": session_id, "suggestion_id": suggestion_id},
+    )
+    other_headers = register_and_login(client)
+
+    response = client.get(
+        f"/api/v1/actions/{action_response.json()['id']}",
+        headers=other_headers,
+    )
+
+    assert response.status_code == 403
+
+
 def test_duplicate_action_for_same_suggestion_is_rejected(
     client: TestClient,
     auth_headers: dict[str, str],

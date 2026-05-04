@@ -63,6 +63,9 @@ class ActionService:
         self.db.refresh(action)
         return action
 
+    def read(self, user_id: int, action_id: int) -> Action:
+        return require_action(self.db, user_id=user_id, action_id=action_id)
+
     def set_status(self, user_id: int, action_id: int, status: ActionStatus | str) -> Action:
         normalized_status = status.value if isinstance(status, ActionStatus) else status
         action = self._apply_status(user_id, action_id, normalized_status)

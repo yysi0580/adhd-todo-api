@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.domain.enums import FeedbackType
+from app.schemas.action import ActionRead
 from app.schemas.suggestion import SuggestionRead
 
 
@@ -30,4 +31,5 @@ class FeedbackRead(BaseModel):
 class FeedbackResponse(BaseModel):
     feedback: FeedbackRead
     action_id: int | None = None
+    action: ActionRead | None = None
     smaller_suggestions: list[SuggestionRead] = []

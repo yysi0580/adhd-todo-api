@@ -49,6 +49,9 @@ def test_feedback_do_creates_action_and_links_action_id(
     assert body["feedback"]["reaction"] == "do"
     assert body["feedback"]["action_id"] == body["action_id"]
     assert body["action_id"] is not None
+    assert body["action"]["id"] == body["action_id"]
+    assert body["action"]["status"] == "active"
+    assert body["action"]["suggestion_id"] == suggestion_id
 
 
 def test_feedback_make_smaller_creates_smaller_suggestions(

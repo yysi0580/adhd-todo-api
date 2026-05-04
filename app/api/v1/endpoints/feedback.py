@@ -18,7 +18,7 @@ def create_feedback(
     generator: SuggestionGenerator = Depends(get_suggestion_generator),
     current_user: User = Depends(get_current_user),
 ):
-    feedback, smaller_suggestions = FeedbackService(db, generator).create(
+    feedback, action, smaller_suggestions = FeedbackService(db, generator).create(
         user_id=current_user.id,
         session_id=payload.session_id,
         suggestion_id=payload.suggestion_id,
@@ -29,5 +29,6 @@ def create_feedback(
     return {
         "feedback": feedback,
         "action_id": feedback.action_id,
+        "action": action,
         "smaller_suggestions": smaller_suggestions,
     }

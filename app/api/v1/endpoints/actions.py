@@ -10,6 +10,15 @@ from app.services.action_service import ActionService
 router = APIRouter()
 
 
+@router.get("/{action_id}", response_model=ActionRead)
+def read_action(
+    action_id: int,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return ActionService(db).read(current_user.id, action_id)
+
+
 @router.post("", response_model=ActionRead, status_code=201)
 def create_action(
     payload: ActionCreate,

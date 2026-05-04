@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.core.exceptions import ValidationDomainError
 from app.domain.enums import FeedbackType, SuggestionGenerationType
-from app.models import Feedback, Suggestion
+from app.models import Action, Feedback, Suggestion
 from app.repositories.action_repository import ActionRepository
 from app.repositories.feedback_repository import FeedbackRepository
 from app.repositories.suggestion_repository import SuggestionRepository
@@ -26,7 +26,7 @@ class FeedbackService:
         action_id: int | None,
         reaction: str,
         note: str | None,
-    ) -> tuple[Feedback, list[Suggestion]]:
+    ) -> tuple[Feedback, Action | None, list[Suggestion]]:
         require_session(self.db, user_id=user_id, session_id=session_id)
         suggestion = self._get_suggestion(
             user_id=user_id,
@@ -37,6 +37,7 @@ class FeedbackService:
 
         smaller_suggestions: list[Suggestion] = []
         resolved_action_id = action_id
+        resolved_action: Action | None = None
 
         if reaction == FeedbackType.do.value:
             action = self.actions.find_by_suggestion_for_user(
@@ -52,6 +53,7 @@ class FeedbackService:
                     micro_step=suggestion.micro_step,
                 )
             resolved_action_id = action.id
+            resolved_action = action
 
         if reaction == FeedbackType.make_smaller.value:
             if self.generator is None:
@@ -88,9 +90,11 @@ class FeedbackService:
         )
         self.db.commit()
         self.db.refresh(feedback)
+        if resolved_action is not None:
+            self.db.refresh(resolved_action)
         for smaller_suggestion in smaller_suggestions:
             self.db.refresh(smaller_suggestion)
-        return feedback, smaller_suggestions
+        return feedback, resolved_action, smaller_suggestions
 
     def _get_suggestion(self, user_id: int, session_id: int, suggestion_id: int) -> Suggestion:
         suggestion = require_suggestion(self.db, user_id=user_id, suggestion_id=suggestion_id)
