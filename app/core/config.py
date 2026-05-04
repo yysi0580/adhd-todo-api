@@ -1,7 +1,8 @@
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -33,13 +34,13 @@ class Settings(BaseSettings):
     ai_cost_input_per_1m: float = 0.40
     ai_cost_cached_input_per_1m: float = 0.10
     ai_cost_output_per_1m: float = 1.60
-    cors_origins: list[str] = [
+    cors_origins: Annotated[list[str], NoDecode] = [
         "http://127.0.0.1:5173",
         "http://localhost:5173",
         "http://yangtheory.site:5173",
     ]
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8-sig")
 
     @field_validator("cors_origins", mode="before")
     @classmethod
