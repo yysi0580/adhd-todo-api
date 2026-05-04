@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session as DbSession
 
-from app.api.deps import get_current_user
+from app.api.deps import client_ip, enforce_rate_limit, get_current_user
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.models import User
 from app.schemas.brain_dump import BrainDumpCreate, BrainDumpResponse
@@ -14,10 +15,16 @@ router = APIRouter()
 @router.post("", response_model=BrainDumpResponse, status_code=201)
 def create_brain_dump(
     payload: BrainDumpCreate,
+    request: Request,
     db: DbSession = Depends(get_db),
     generator: SuggestionGenerator = Depends(get_suggestion_generator),
     current_user: User = Depends(get_current_user),
 ) -> dict:
+    settings = get_settings()
+    enforce_rate_limit(
+        key=f"brain-dumps:{current_user.id}:{client_ip(request)}",
+        limit=settings.brain_dump_rate_limit_per_minute,
+    )
     session, brain_dump, suggestions = BrainDumpService(db, generator).create_with_suggestions(
         user_id=current_user.id,
         raw_text=payload.raw_text,
