@@ -9,7 +9,7 @@ FastAPI 기반 ADHD 타깃 실행 보조 API입니다.
 - Brain Dump는 한 줄과 장문을 모두 허용합니다.
 - 장문 입력은 2~5개의 micro-step suggestion으로 자동 분해합니다.
 - 처음부터 행동 1개만 강제하지 않고 여러 suggestion을 제시합니다.
-- `reaction=do`를 보내면 선택된 suggestion이 하나의 Action으로 수렴합니다.
+- `reaction=do`를 보내면 선택된 suggestion이 하나의 Action으로 수렴하고 응답에 `action` 객체가 포함됩니다.
 - `completed`와 `aborted`는 성공/실패 압박이 아니라 다음 제안을 위한 패턴 데이터입니다.
 - 현재 suggestion 생성은 rule-based를 기본값으로 사용하고, 환경변수로 AI generator를 선택적으로 켤 수 있습니다.
 
@@ -19,7 +19,7 @@ FastAPI 기반 ADHD 타깃 실행 보조 API입니다.
 - Brain Dump: 정리되지 않은 생각 저장
 - 자동 분해: 쉼표, 줄바꿈, 마침표, "그리고", "또", "해야" 같은 표현 기준 분리
 - Suggestions: 여러 개의 2~5분짜리 행동 후보 생성
-- AI Suggestions: OpenAI Responses API structured outputs 기반의 선택형 micro-step 생성
+- AI Suggestions: 기본값은 rule-based이며, OpenAI Structured Outputs 기반 generator로 교체/활성화 가능한 구조
 - make_smaller: 부담스러운 suggestion을 1~3개의 더 작은 행동으로 재생성
 - Feedback: `do`, `snooze`, `pass`, `make_smaller`, `capture_only` 반응 저장
 - Action: 선택된 suggestion을 실행 상태로 전환하고 `complete` 또는 `abort`
@@ -228,7 +228,24 @@ Content-Type: application/json
 }
 ```
 
-`reaction=do`이면 Action이 자동 생성되고 응답에 `action_id`가 포함됩니다.
+`reaction=do`이면 Action이 자동 생성되고 응답에 `action_id`와 `action` 객체가 포함됩니다.
+
+```json
+{
+  "feedback": {
+    "reaction": "do",
+    "action_id": 1
+  },
+  "action_id": 1,
+  "action": {
+    "id": 1,
+    "status": "active",
+    "title": "교수님 메일 초안",
+    "micro_step": "메일 첫 줄만 쓰기"
+  },
+  "smaller_suggestions": []
+}
+```
 
 5. Action 완료 또는 중단
 
@@ -286,12 +303,14 @@ GET  /api/v1/me/history
 POST /api/v1/brain-dumps
 POST /api/v1/suggestions/{suggestion_id}/make-smaller
 POST /api/v1/actions
+GET  /api/v1/actions/{action_id}
 POST /api/v1/actions/{action_id}/complete
 POST /api/v1/actions/{action_id}/abort
 POST /api/v1/feedback
 ```
 
 `PATCH /api/v1/actions/{action_id}`는 제거되었습니다. Action 상태 변경은 `complete`와 `abort` 전용 API만 사용합니다.
+`GET /api/v1/actions/{action_id}`는 본인 action만 조회할 수 있으며, 다른 사용자의 action 접근은 403으로 응답합니다.
 
 ## 보안 정책
 
@@ -305,7 +324,7 @@ POST /api/v1/feedback
 
 ## AI suggestion
 
-기본 동작은 rule-based generator입니다. 운영 또는 실험 환경에서 아래 설정을 켜면 OpenAI Responses API 기반 AI generator가 Brain Dump와 make_smaller suggestion 생성을 담당합니다.
+현재는 rule-based suggestion generator를 기본으로 사용하며, 추후 OpenAI Structured Outputs 기반 AI generator로 교체 가능하도록 설계되어 있습니다. 운영 또는 실험 환경에서 아래 설정을 켜면 OpenAI Responses API 기반 AI generator가 Brain Dump와 make_smaller suggestion 생성을 담당할 수 있습니다.
 
 ```text
 OPENAI_API_KEY=sk-...
@@ -328,7 +347,7 @@ AI 응답은 Structured Outputs 기반 JSON으로만 받습니다.
 }
 ```
 
-AI는 사용자를 평가하거나 우선순위를 강요하지 않고, 사용자가 고를 수 있는 작은 행동 후보만 생성합니다. OpenAI API 오류, timeout, 비어 있는 응답, 유효하지 않은 structured output이 발생하면 API 요청은 실패하지 않고 rule-based generator로 fallback합니다. Suggestion 응답의 `source` 값은 `ai` 또는 `rule_based`입니다.
+AI는 사용자를 평가하거나 우선순위를 강요하지 않고, 사용자가 고를 수 있는 작은 행동 후보만 생성하도록 설계되어 있습니다. OpenAI API 오류, timeout, 비어 있는 응답, 유효하지 않은 structured output이 발생하면 API 요청은 실패하지 않고 rule-based generator로 fallback합니다. Suggestion 응답의 `source` 값은 `ai` 또는 `rule_based`입니다.
 
 ## Feedback reaction
 
@@ -350,7 +369,7 @@ python -m ruff check app tests alembic --fix
 python -m pytest
 ```
 
-테스트는 메모리 SQLite DB를 사용해서 로컬 개발 DB를 건드리지 않습니다.
+테스트는 메모리 SQLite DB를 사용해서 로컬 개발 DB를 건드리지 않습니다. 현재 핵심 테스트에는 action 상세 조회, 타인 action 403, feedback `do` 응답의 `action` 포함 검증이 들어 있습니다.
 
 ## 배포
 
@@ -365,6 +384,31 @@ python -m pytest
 7. Health check path를 `/api/v1/health`로 둡니다.
 
 초기 MVP는 SQLite로 실행할 수 있지만, 실제 운영에서는 PostgreSQL을 권장합니다.
+
+## 배포 확인
+
+현재 테스트용 주소:
+
+```text
+Frontend: http://yangtheory.site:5173
+Backend:  http://yangtheory.site:8001
+```
+
+Health check:
+
+```bash
+curl http://yangtheory.site:8001/api/v1/health
+```
+
+브라우저 확인:
+
+```text
+http://yangtheory.site:5173/today
+```
+
+로그인 후 Brain Dump를 입력하고 `/sessions/{session_id}/suggestions`,
+`/actions/{action_id}`, `/history` 흐름을 확인합니다. 백엔드 CORS에는
+`http://yangtheory.site:5173` origin이 포함되어야 합니다.
 
 ## yangtheory.site로 열기
 
