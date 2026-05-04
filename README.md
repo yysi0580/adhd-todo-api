@@ -114,6 +114,8 @@ app/
 
 ## 로컬 실행
 
+백엔드:
+
 ```powershell
 cd C:\ytheory\adhd-todo-api
 python -m venv .venv
@@ -128,6 +130,23 @@ API 문서:
 ```text
 http://127.0.0.1:8000/docs
 ```
+
+프론트엔드:
+
+```powershell
+cd C:\ytheory\adhd-todo-api
+npm install
+npm run dev
+```
+
+웹 앱:
+
+```text
+http://127.0.0.1:5173/today
+```
+
+프론트엔드는 mock data로 모든 화면을 먼저 확인할 수 있고, 실제 API 연결은
+`VITE_API_BASE_URL`을 통해 백엔드 주소를 바꿉니다.
 
 ## 환경변수
 
@@ -145,6 +164,7 @@ BRAIN_DUMP_RATE_LIMIT_PER_MINUTE=60
 OPENAI_API_KEY=
 AI_SUGGESTION_ENABLED=false
 AI_MODEL=gpt-4.1-mini
+VITE_API_BASE_URL=http://127.0.0.1:8001/api/v1
 ```
 
 운영에서는 `JWT_SECRET_KEY`를 반드시 안전한 값으로 바꾸고, `DATABASE_URL`은 PostgreSQL을 권장합니다.
