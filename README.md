@@ -15,7 +15,7 @@ FastAPI 기반 ADHD 타깃 실행 보조 API입니다.
 
 ## 주요 기능
 
-- Auth: 회원가입, 로그인, JWT access token 발급, 내 정보 조회
+- Auth: 회원가입, 로그인, JWT access/refresh token 발급, access token 재발급, 내 정보 조회
 - Brain Dump: 정리되지 않은 생각 저장
 - 자동 분해: 쉼표, 줄바꿈, 마침표, "그리고", "또", "해야" 같은 표현 기준 분리
 - Suggestions: 여러 개의 2~5분짜리 행동 후보 생성
@@ -23,6 +23,7 @@ FastAPI 기반 ADHD 타깃 실행 보조 API입니다.
 - Feedback: `do`, `snooze`, `pass`, `make_smaller`, `capture_only` 반응 저장
 - Action: 선택된 suggestion을 실행 상태로 전환하고 `complete` 또는 `abort`
 - History: 내 최근 session, brain dump, action, feedback 요약 조회
+- Login protection: 비밀번호 정책, 로그인 실패 5회 차단, 주요 API rate limit
 
 ## 코드 구조
 
@@ -129,6 +130,11 @@ AUTO_CREATE_TABLES=true
 JWT_SECRET_KEY=change-this-secret-in-production
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
+REFRESH_TOKEN_EXPIRE_DAYS=14
+LOGIN_FAILURE_LIMIT=5
+LOGIN_BLOCK_MINUTES=5
+LOGIN_RATE_LIMIT_PER_MINUTE=20
+BRAIN_DUMP_RATE_LIMIT_PER_MINUTE=60
 ```
 
 운영에서는 `JWT_SECRET_KEY`를 반드시 안전한 값으로 바꾸고, `DATABASE_URL`은 PostgreSQL을 권장합니다.
@@ -152,7 +158,7 @@ Content-Type: application/json
 }
 ```
 
-2. 로그인 후 JWT 받기
+2. 로그인 후 access/refresh token 받기
 
 ```http
 POST /api/v1/auth/login
@@ -168,6 +174,17 @@ Content-Type: application/json
 
 ```http
 Authorization: Bearer {access_token}
+```
+
+access token이 만료되면 refresh token으로 새 토큰을 받습니다.
+
+```http
+POST /api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "{refresh_token}"
+}
 ```
 
 3. Brain Dump 입력
@@ -245,6 +262,7 @@ GET  /api/v1/health
 POST /api/v1/auth/register
 POST /api/v1/auth/login
 GET  /api/v1/users/me
+POST /api/v1/auth/refresh
 POST /api/v1/sessions
 GET  /api/v1/sessions/{session_id}
 GET  /api/v1/sessions/{session_id}/brain-dumps
@@ -260,7 +278,17 @@ POST /api/v1/actions/{action_id}/abort
 POST /api/v1/feedback
 ```
 
-`PATCH /api/v1/actions/{action_id}`는 이전 호환용 deprecated API입니다. 새 클라이언트는 `complete`와 `abort` 전용 API를 사용하세요.
+`PATCH /api/v1/actions/{action_id}`는 제거되었습니다. Action 상태 변경은 `complete`와 `abort` 전용 API만 사용합니다.
+
+## 보안 정책
+
+- access token은 `ACCESS_TOKEN_EXPIRE_MINUTES` 설정에 따라 만료됩니다.
+- refresh token은 `/api/v1/auth/refresh`에서 access token 재발급에 사용합니다.
+- 비밀번호는 bcrypt로 해시 저장하며, 8자 이상 + 문자/숫자 포함을 요구합니다.
+- 로그인 실패가 5회 반복되면 기본 5분 동안 차단합니다.
+- login과 brain dump 생성에는 in-memory rate limit이 적용됩니다.
+- 모든 session, brain dump, suggestion, action, feedback은 `user_id` 기준으로 보호됩니다.
+- 다른 사용자의 리소스 접근은 `PERMISSION_DENIED` 계열 403 응답으로 처리합니다.
 
 ## Feedback reaction
 
