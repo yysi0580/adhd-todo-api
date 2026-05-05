@@ -569,6 +569,7 @@ MVP 안정화 시 아래 흐름을 반복 확인합니다.
 - AI 제한에 걸리면 사용자 흐름은 기본 제안기로 계속 진행되고, 내부 사용량 로그에는 제한 코드가 남습니다.
 - 비용 제한은 예상 token 비용 기준입니다. 실제 청구 금액과 차이가 날 수 있으니 운영 전 OpenAI pricing을 확인합니다.
 - 프론트엔드는 OpenAI를 직접 호출하지 않습니다. `OPENAI_API_KEY`는 백엔드 `.env` 또는 서버 환경변수에만 둡니다.
+- AI 품질 튜닝, prompt version 변경, 반복 실제 호출 평가는 비용이 발생할 수 있으므로 별도 작업으로 신중히 진행합니다. 기본 배포/CI/운영 체크에서는 실제 OpenAI 반복 호출을 하지 않습니다.
 
 ## 배포
 
@@ -593,6 +594,7 @@ Backend 배포 흐름:
 8. Health check path를 `/api/v1/health`로 둡니다.
 
 초기 MVP는 SQLite로 실행할 수 있지만, 실제 운영에서는 PostgreSQL을 권장합니다. 운영 DB 스키마는 `Base.metadata.create_all()`이 아니라 Alembic migration으로 관리합니다.
+SQLite는 로컬 개발/시연용입니다. Oracle DB는 현재 기본 지원 대상이 아니며 이번 MVP 배포 범위에 포함하지 않습니다.
 
 systemd 예시:
 
@@ -668,11 +670,17 @@ python -m alembic upgrade head
 uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-포트 없는 production은 프론트 저장소의 `deploy/nginx.yangtheory.site.conf`처럼 구성합니다.
+포트 없는 production은 `deploy/nginx.yangtheory.site.conf`처럼 구성합니다. `/`는 React 정적 build를 서빙하고, `/api/`는 FastAPI로 프록시합니다. `/today`, `/settings`, `/history`, `/actions/{id}`, `/sessions/{id}/suggestions` 새로고침은 `index.html` fallback으로 처리됩니다.
 
 ```nginx
+root /var/www/adhd-todo-web/dist;
+
 location /api/ {
     proxy_pass http://127.0.0.1:8000/api/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 }
 
 location / {
@@ -680,7 +688,7 @@ location / {
 }
 ```
 
-백엔드 단독 서브도메인 프록시 예시는 `deploy/nginx.yangtheory.site.conf`에 있습니다.
+배포 체크리스트는 `docs/deployment-checklist.md`에 있습니다.
 
 ```bash
 sudo cp deploy/nginx.yangtheory.site.conf /etc/nginx/sites-available/adhd-todo-api
@@ -698,6 +706,6 @@ sudo certbot --nginx -d yangtheory.site -d www.yangtheory.site
 ## 다음 개발 순서
 
 1. PostgreSQL 운영 DB 연결과 실제 서버 백업 정책 확정
-2. AI suggestion 품질 평가와 프롬프트 버전 관리
+2. AI suggestion 품질 평가와 프롬프트 버전 관리. 비용이 발생할 수 있으므로 별도 작업에서 opt-in으로 진행
 3. feedback 패턴 기반 난이도 조절
 4. Calendar Import one-time candidate ingestion 구현
