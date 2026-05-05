@@ -23,3 +23,12 @@ class UserUpdate(BaseModel):
         if not normalized:
             raise ValueError("닉네임을 입력해주세요.")
         return normalized
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class MessageResponse(BaseModel):
+    message: str

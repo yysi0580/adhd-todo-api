@@ -65,7 +65,6 @@ app/
     feedback.py
     ai_usage_log.py
     routine.py
-    routine.py
   schemas/
     auth.py
     user.py
@@ -205,9 +204,19 @@ AI_COST_OUTPUT_PER_1M=1.60
 프론트엔드 `.env`에는 `OPENAI_API_KEY`를 넣지 않습니다. React는 OpenAI API를 직접 호출하지 않고 FastAPI 백엔드 API만 호출합니다.
 
 ```text
+ENVIRONMENT=production
 DATABASE_URL=postgresql+psycopg://user:password@host:5432/adhd_todo
 AUTO_CREATE_TABLES=false
+CORS_ORIGINS=https://yangtheory.site
 ```
+
+로컬 개발/시연은 SQLite를 기본으로 사용할 수 있습니다. 실서비스 운영 DB는 PostgreSQL을 권장하며, Oracle DB는 현재 기본 지원 대상이 아닙니다. 운영에서는 `AUTO_CREATE_TABLES=false`를 두고 스키마 변경을 반드시 Alembic으로 반영합니다.
+
+```powershell
+python -m alembic upgrade head
+```
+
+배포 전에는 운영 DB 백업을 권장합니다. `adhd_todo.db`와 `*.db`는 로컬 파일이며 Git 커밋 대상이 아닙니다. DB Browser for SQLite로 직접 수정한 값도 로컬 DB에만 남습니다.
 
 ## API 흐름 예시
 
@@ -226,7 +235,7 @@ Content-Type: application/json
 
 `nickname`은 2~30자이며 앞뒤 공백은 제거됩니다. 기존 계정처럼 nickname이 없는 사용자는
 `/api/v1/users/me`에서 `nickname: null`로 응답할 수 있고, 프론트엔드는 email 앞부분으로
-안전하게 표시합니다. nickname은 아직 unique가 아니며, 수정 API는 다음 단계 TODO입니다.
+안전하게 표시합니다. nickname은 아직 unique가 아니며, `/api/v1/users/me`에서 수정할 수 있습니다.
 
 2. 로그인 후 access/refresh token 받기
 
@@ -350,6 +359,7 @@ POST /api/v1/auth/register
 POST /api/v1/auth/login
 GET  /api/v1/users/me
 PATCH /api/v1/users/me
+PATCH /api/v1/users/me/password
 POST /api/v1/auth/refresh
 POST /api/v1/sessions
 GET  /api/v1/sessions/{session_id}
@@ -371,14 +381,18 @@ GET  /api/v1/routines
 POST /api/v1/routines
 PATCH /api/v1/routines/{routine_id}
 DELETE /api/v1/routines/{routine_id}
+POST /api/v1/routines/{routine_id}/start-action
 ```
 
 `GET /api/v1/users/me` 응답에는 `id`, `email`, `nickname`, `created_at`, `updated_at`이 포함됩니다.
 비밀번호 해시나 token secret은 응답하지 않습니다.
 `PATCH /api/v1/users/me`는 2~30자 nickname 수정만 지원하며, 저장 즉시 프론트 Topbar에 반영할 수 있습니다.
+`PATCH /api/v1/users/me/password`는 현재 비밀번호를 확인한 뒤 새 비밀번호로 교체합니다. 새 비밀번호도 8자 이상 + 문자/숫자 포함 정책을 따릅니다.
 
 `PATCH /api/v1/actions/{action_id}`는 제거되었습니다. Action 상태 변경은 `complete`와 `abort` 전용 API만 사용합니다.
 `GET /api/v1/actions/{action_id}`는 본인 action만 조회할 수 있으며, 다른 사용자의 action 접근은 403으로 응답합니다.
+
+Routines는 본인 소유의 안전망 행동입니다. `POST /api/v1/routines/{routine_id}/start-action`은 active routine을 바로 Action으로 전환합니다. inactive routine이나 다른 사용자의 routine은 시작할 수 없습니다.
 
 ## 보안 정책
 
@@ -388,7 +402,17 @@ DELETE /api/v1/routines/{routine_id}
 - 로그인 실패가 5회 반복되면 기본 5분 동안 차단합니다.
 - login과 brain dump 생성에는 in-memory rate limit이 적용됩니다.
 - 모든 session, brain dump, suggestion, action, feedback은 `user_id` 기준으로 보호됩니다.
+- routine도 `user_id` 기준으로 보호되며 다른 사용자의 routine 접근은 403입니다.
 - 다른 사용자의 리소스 접근은 `PERMISSION_DENIED` 계열 403 응답으로 처리합니다.
+- `ENVIRONMENT=production`에서 기본 `JWT_SECRET_KEY`를 그대로 쓰거나 `CORS_ORIGINS=*`를 설정하면 서버가 시작되지 않습니다.
+- OpenAI 내부 오류 원문은 사용자에게 그대로 노출하지 않고 rule-based fallback 또는 안전한 에러 코드로 처리합니다.
+
+운영 전 TODO:
+
+- refresh token을 httpOnly secure cookie로 전환
+- 서버 측 refresh token revoke/logout 저장소 도입
+- CSRF 정책 검토
+- 계정 삭제 기능 추가
 
 ## AI suggestion
 
@@ -563,11 +587,30 @@ Backend 배포 흐름:
 2. 서버에서 `.env.example`을 `.env`로 복사하고 secret을 채웁니다.
 3. `DATABASE_URL`은 PostgreSQL로 설정합니다.
 4. `JWT_SECRET_KEY`를 운영용 secret으로 설정합니다.
-5. 배포 전 `python -m alembic upgrade head`를 실행합니다.
-6. `uvicorn app.main:app --host 127.0.0.1 --port 8000` 또는 systemd로 실행합니다.
-7. Health check path를 `/api/v1/health`로 둡니다.
+5. `ENVIRONMENT=production`, `AUTO_CREATE_TABLES=false`, `CORS_ORIGINS=https://yangtheory.site`를 설정합니다.
+6. 배포 전 `python -m alembic upgrade head`를 실행합니다.
+7. `uvicorn app.main:app --host 127.0.0.1 --port 8000` 또는 systemd로 실행합니다.
+8. Health check path를 `/api/v1/health`로 둡니다.
 
-초기 MVP는 SQLite로 실행할 수 있지만, 실제 운영에서는 PostgreSQL을 권장합니다.
+초기 MVP는 SQLite로 실행할 수 있지만, 실제 운영에서는 PostgreSQL을 권장합니다. 운영 DB 스키마는 `Base.metadata.create_all()`이 아니라 Alembic migration으로 관리합니다.
+
+systemd 예시:
+
+```ini
+[Unit]
+Description=ADHD Todo API
+After=network.target
+
+[Service]
+WorkingDirectory=/srv/adhd-todo-api
+EnvironmentFile=/srv/adhd-todo-api/.env
+ExecStart=/srv/adhd-todo-api/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
 
 ## 배포 확인
 
@@ -582,6 +625,7 @@ Health check:
 
 ```bash
 curl http://yangtheory.site:8001/api/v1/health
+curl https://yangtheory.site/api/v1/health
 ```
 
 브라우저 확인:
@@ -593,7 +637,7 @@ http://yangtheory.site:5173/today
 로그인 후 Brain Dump를 입력하고 `/sessions/{session_id}/suggestions`,
 `/actions/{action_id}`, `/history` 흐름을 확인합니다. 백엔드 CORS에는
 최종 프론트 origin인 `https://yangtheory.site` 또는 시연용
-`http://yangtheory.site:5173` origin이 포함되어야 합니다.
+`http://yangtheory.site:5173` origin이 포함되어야 합니다. production nginx는 `/api/`를 백엔드로 프록시하고, `/today`, `/settings`, `/actions/{id}` 같은 React Router 직접 진입은 프론트 `index.html`로 fallback해야 합니다.
 
 ## CI
 
@@ -624,7 +668,19 @@ python -m alembic upgrade head
 uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Nginx 리버스 프록시 예시는 `deploy/nginx.yangtheory.site.conf`에 있습니다.
+포트 없는 production은 프론트 저장소의 `deploy/nginx.yangtheory.site.conf`처럼 구성합니다.
+
+```nginx
+location /api/ {
+    proxy_pass http://127.0.0.1:8000/api/;
+}
+
+location / {
+    try_files $uri $uri/ /index.html;
+}
+```
+
+백엔드 단독 서브도메인 프록시 예시는 `deploy/nginx.yangtheory.site.conf`에 있습니다.
 
 ```bash
 sudo cp deploy/nginx.yangtheory.site.conf /etc/nginx/sites-available/adhd-todo-api
@@ -641,7 +697,7 @@ sudo certbot --nginx -d yangtheory.site -d www.yangtheory.site
 
 ## 다음 개발 순서
 
-1. PostgreSQL 운영 DB 연결 및 배포 파이프라인 정리
+1. PostgreSQL 운영 DB 연결과 실제 서버 백업 정책 확정
 2. AI suggestion 품질 평가와 프롬프트 버전 관리
 3. feedback 패턴 기반 난이도 조절
-4. 프론트엔드에서 Brain Dump 입력과 Suggestion 선택 UI 연결
+4. Calendar Import one-time candidate ingestion 구현

@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
+from app.core.config import get_settings
 from app.core.db import Base, get_db
 from app.core.limits import reset_limits
 from app.main import app
@@ -48,8 +49,15 @@ def auth_headers(client: TestClient) -> dict[str, str]:
 
 @pytest.fixture(autouse=True)
 def clear_in_memory_limits() -> Generator:
+    settings = get_settings()
+    original_ai_enabled = settings.ai_suggestion_enabled
+    original_openai_key = settings.openai_api_key
+    settings.ai_suggestion_enabled = False
+    settings.openai_api_key = None
     reset_limits()
     yield
+    settings.ai_suggestion_enabled = original_ai_enabled
+    settings.openai_api_key = original_openai_key
     reset_limits()
 
 

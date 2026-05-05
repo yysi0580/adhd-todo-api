@@ -56,3 +56,59 @@ def test_routine_ownership_is_enforced(client: TestClient, auth_headers: dict[st
 
     assert update_response.status_code == 403
     assert delete_response.status_code == 403
+
+
+def test_active_routine_can_start_action(client: TestClient, auth_headers: dict[str, str]):
+    create_response = client.post(
+        "/api/v1/routines",
+        headers=auth_headers,
+        json={"title": "물 한 컵", "micro_step": "컵에 물을 따라 한 모금 마십니다."},
+    )
+
+    response = client.post(
+        f"/api/v1/routines/{create_response.json()['id']}/start-action",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "active"
+    assert response.json()["title"] == "물 한 컵"
+
+
+def test_inactive_routine_cannot_start_action(client: TestClient, auth_headers: dict[str, str]):
+    create_response = client.post(
+        "/api/v1/routines",
+        headers=auth_headers,
+        json={
+            "title": "메일 제목",
+            "micro_step": "메일 제목만 쓰기",
+            "is_active": False,
+        },
+    )
+
+    response = client.post(
+        f"/api/v1/routines/{create_response.json()['id']}/start-action",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "ROUTINE_INACTIVE"
+
+
+def test_other_user_cannot_start_routine_action(
+    client: TestClient,
+    auth_headers: dict[str, str],
+):
+    other_headers = register_and_login(client, email="routine-start-other@example.com")
+    create_response = client.post(
+        "/api/v1/routines",
+        headers=auth_headers,
+        json={"title": "책상 3개", "micro_step": "책상 위 물건 3개만 옮기기"},
+    )
+
+    response = client.post(
+        f"/api/v1/routines/{create_response.json()['id']}/start-action",
+        headers=other_headers,
+    )
+
+    assert response.status_code == 403

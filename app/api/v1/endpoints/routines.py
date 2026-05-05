@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session as DbSession
 from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.models import User
+from app.schemas.action import ActionRead
 from app.schemas.routine import RoutineCreate, RoutineRead, RoutineUpdate
 from app.services.routine_service import RoutineService
 
@@ -58,3 +59,12 @@ def delete_routine(
 ):
     RoutineService(db).delete(current_user.id, routine_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{routine_id}/start-action", response_model=ActionRead, status_code=201)
+def start_routine_action(
+    routine_id: int,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return RoutineService(db).start_action(current_user.id, routine_id)

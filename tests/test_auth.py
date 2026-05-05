@@ -129,6 +129,59 @@ def test_update_me_rejects_blank_nickname(client: TestClient, auth_headers: dict
     assert response.status_code == 422
 
 
+def test_change_password_flow(client: TestClient):
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "change-password@example.com", "password": "password123"},
+    )
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "change-password@example.com", "password": "password123"},
+    )
+    headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+    change_response = client.patch(
+        "/api/v1/users/me/password",
+        headers=headers,
+        json={"current_password": "password123", "new_password": "newpass123"},
+    )
+    new_login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "change-password@example.com", "password": "newpass123"},
+    )
+
+    assert change_response.status_code == 200
+    assert new_login_response.status_code == 200
+
+
+def test_change_password_rejects_wrong_current_password(
+    client: TestClient,
+    auth_headers: dict[str, str],
+):
+    response = client.patch(
+        "/api/v1/users/me/password",
+        headers=auth_headers,
+        json={"current_password": "wrong-password", "new_password": "newpass123"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "INVALID_CURRENT_PASSWORD"
+
+
+def test_change_password_rejects_weak_password(
+    client: TestClient,
+    auth_headers: dict[str, str],
+):
+    response = client.patch(
+        "/api/v1/users/me/password",
+        headers=auth_headers,
+        json={"current_password": "password123", "new_password": "weakpass"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "WEAK_PASSWORD"
+
+
 def test_expired_access_token_is_rejected(client: TestClient):
     client.post(
         "/api/v1/auth/register",

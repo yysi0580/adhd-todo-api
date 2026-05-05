@@ -18,6 +18,15 @@ class RoutineRepository:
             .all()
         )
 
+    def list_active_for_user(self, user_id: int, limit: int = 3) -> list[Routine]:
+        return (
+            self.db.query(Routine)
+            .filter(Routine.user_id == user_id, Routine.is_active.is_(True))
+            .order_by(Routine.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
     def create(
         self,
         user_id: int,

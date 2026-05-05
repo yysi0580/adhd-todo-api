@@ -54,6 +54,30 @@ def test_brain_dump_uses_existing_session_when_session_id_is_given(
     assert response.json()["session"]["id"] == session_id
 
 
+def test_brain_dump_can_use_active_routine_as_safety_net(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch,
+):
+    monkeypatch.setattr("app.services.suggestion.generator.SAFETY_NET_ACTIONS", [])
+    client.post(
+        "/api/v1/routines",
+        headers=auth_headers,
+        json={"title": "물 한 컵", "micro_step": "컵에 물을 따라 한 모금 마십니다."},
+    )
+
+    response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "메일"},
+    )
+
+    assert response.status_code == 201
+    suggestions = response.json()["suggestions"]
+    assert any(suggestion["title"] == "물 한 컵" for suggestion in suggestions)
+    assert any(suggestion["generation_type"] == "safety_net" for suggestion in suggestions)
+
+
 def test_brain_dump_rate_limit_applies(client: TestClient, auth_headers: dict[str, str]):
     settings = get_settings()
     original_limit = settings.brain_dump_rate_limit_per_minute

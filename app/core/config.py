@@ -59,3 +59,12 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def validate_production_settings(settings: Settings) -> None:
+    if settings.environment.lower() != "production":
+        return
+    if settings.jwt_secret_key == "change-this-secret-in-production":
+        raise RuntimeError("JWT_SECRET_KEY must be changed in production.")
+    if "*" in settings.cors_origins:
+        raise RuntimeError("CORS_ORIGINS must not include '*' in production.")
