@@ -1,14 +1,22 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session as DbSession
 
-from app.api.deps import client_ip, enforce_rate_limit
+from app.api.deps import client_ip, enforce_rate_limit, get_current_user
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.exceptions import ValidationDomainError
 from app.core.limits import clear_login_failures, is_login_blocked, record_login_failure
-from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, TokenResponse
-from app.schemas.user import UserRead
+from app.models import User
+from app.schemas.auth import (
+    LoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    TokenResponse,
+    VerifyEmailRequest,
+)
+from app.schemas.user import MessageResponse, UserRead
 from app.services.auth_service import AuthService
+from app.services.email_verification_service import EmailVerificationService
 
 router = APIRouter()
 
@@ -55,3 +63,23 @@ def login(payload: LoginRequest, request: Request, db: DbSession = Depends(get_d
 @router.post("/refresh", response_model=TokenResponse)
 def refresh(payload: RefreshRequest, db: DbSession = Depends(get_db)):
     return AuthService(db).refresh(refresh_token=payload.refresh_token)
+
+
+@router.post("/verify-email", response_model=MessageResponse)
+def verify_email(payload: VerifyEmailRequest, db: DbSession = Depends(get_db)):
+    EmailVerificationService(db).verify_token(payload.token)
+    return {"message": "이메일 인증이 완료되었습니다."}
+
+
+@router.post("/resend-verification", response_model=MessageResponse)
+def resend_verification(
+    request: Request,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    enforce_rate_limit(
+        f"email-verification:{current_user.id}:{client_ip(request)}",
+        limit=3,
+    )
+    _, message = EmailVerificationService(db).resend_verification(current_user)
+    return {"message": message}

@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     ai_cost_input_per_1m: float = 0.40
     ai_cost_cached_input_per_1m: float = 0.10
     ai_cost_output_per_1m: float = 1.60
+    mail_from: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = True
+    email_verification_expire_minutes: int = 30
+    frontend_base_url: str = "https://yangtheory.site"
     cors_origins: Annotated[list[str], NoDecode] = [
         "http://127.0.0.1:5173",
         "http://localhost:5173",

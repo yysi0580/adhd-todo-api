@@ -7,6 +7,7 @@ class UserRead(BaseModel):
     id: int
     email: EmailStr
     nickname: str | None = None
+    email_verified: bool
     created_at: datetime
     updated_at: datetime
 

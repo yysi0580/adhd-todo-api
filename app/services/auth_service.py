@@ -13,6 +13,7 @@ from app.core.security import (
 )
 from app.models import User
 from app.repositories.user_repository import UserRepository
+from app.services.email_verification_service import EmailVerificationService
 
 
 class AuthService:
@@ -33,6 +34,7 @@ class AuthService:
             password_hash=hash_password(password),
             nickname=nickname,
         )
+        EmailVerificationService(self.db).send_verification(user)
         self.db.commit()
         self.db.refresh(user)
         return user

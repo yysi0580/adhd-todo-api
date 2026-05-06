@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -10,6 +10,7 @@ from app.domain.time import utc_now
 if TYPE_CHECKING:
     from app.models.action import Action
     from app.models.brain_dump import BrainDump
+    from app.models.email_verification_token import EmailVerificationToken
     from app.models.feedback import Feedback
     from app.models.routine import Routine
     from app.models.session import Session
@@ -23,6 +24,11 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     nickname: Mapped[str | None] = mapped_column(String(30), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -36,3 +42,6 @@ class User(Base):
     actions: Mapped[list["Action"]] = relationship(back_populates="user")
     feedback: Mapped[list["Feedback"]] = relationship(back_populates="user")
     routines: Mapped[list["Routine"]] = relationship(back_populates="user")
+    email_verification_tokens: Mapped[list["EmailVerificationToken"]] = relationship(
+        back_populates="user",
+    )

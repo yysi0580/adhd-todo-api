@@ -16,6 +16,7 @@ FastAPI 기반 ADHD 타깃 실행 보조 API입니다.
 ## 주요 기능
 
 - Auth: 회원가입, 로그인, JWT access/refresh token 발급, access token 재발급, 내 정보 조회
+- Email verification: 회원가입 후 이메일 인증 링크 발송, 인증 확인, 인증 메일 재발송
 - Brain Dump: 정리되지 않은 생각 저장
 - 자동 분해: 쉼표, 줄바꿈, 마침표, "그리고", "또", "해야" 같은 표현 기준 분리
 - Suggestions: 여러 개의 2~5분짜리 행동 후보 생성
@@ -65,6 +66,7 @@ app/
     feedback.py
     ai_usage_log.py
     routine.py
+    email_verification_token.py
   schemas/
     auth.py
     user.py
@@ -83,6 +85,7 @@ app/
     feedback_repository.py
     ai_usage_log_repository.py
     routine_repository.py
+    email_verification_repository.py
   services/
     ai/
       client.py
@@ -95,6 +98,8 @@ app/
       exceptions.py
       usage_logger.py
     auth_service.py
+    email_service.py
+    email_verification_service.py
     session_service.py
     brain_dump_service.py
     suggestion_service.py
@@ -197,11 +202,20 @@ AI_COST_LOG_ENABLED=true
 AI_COST_INPUT_PER_1M=0.40
 AI_COST_CACHED_INPUT_PER_1M=0.10
 AI_COST_OUTPUT_PER_1M=1.60
+MAIL_FROM=
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_USE_TLS=true
+EMAIL_VERIFICATION_EXPIRE_MINUTES=30
+FRONTEND_BASE_URL=https://yangtheory.site
 ```
 
 운영에서는 `JWT_SECRET_KEY`를 반드시 안전한 값으로 바꾸고, `DATABASE_URL`은 PostgreSQL을 권장합니다.
 `AI_SUGGESTION_ENABLED=true`와 `OPENAI_API_KEY`가 모두 설정된 경우에만 AI suggestion generator가 사용됩니다.
 프론트엔드 `.env`에는 `OPENAI_API_KEY`를 넣지 않습니다. React는 OpenAI API를 직접 호출하지 않고 FastAPI 백엔드 API만 호출합니다.
+SMTP 비밀번호도 백엔드 `.env`에만 둡니다. 프론트엔드에는 SMTP 설정이나 secret을 넣지 않습니다.
 
 ```text
 ENVIRONMENT=production
@@ -217,6 +231,25 @@ python -m alembic upgrade head
 ```
 
 배포 전에는 운영 DB 백업을 권장합니다. `adhd_todo.db`와 `*.db`는 로컬 파일이며 Git 커밋 대상이 아닙니다. DB Browser for SQLite로 직접 수정한 값도 로컬 DB에만 남습니다.
+
+### 이메일 인증 SMTP 설정
+
+운영에서 이메일 인증을 실제로 발송하려면 백엔드 `.env`에 SMTP 값을 입력합니다.
+
+```text
+MAIL_FROM=no-reply@yangtheory.site
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=...
+SMTP_PASSWORD=...
+SMTP_USE_TLS=true
+EMAIL_VERIFICATION_EXPIRE_MINUTES=30
+FRONTEND_BASE_URL=https://yangtheory.site
+```
+
+SMTP 설정이 없는 개발 환경에서는 인증 링크를 로그로 남기고 메일 발송을 건너뜁니다. 운영에서
+메일 발송에 실패해도 사용자 생성은 유지되며, 사용자는 로그인 후 Settings에서 인증 메일을 다시
+요청할 수 있습니다. SMTP 비밀번호는 GitHub나 프론트엔드 저장소에 넣지 않습니다.
 
 ## API 흐름 예시
 
@@ -236,6 +269,28 @@ Content-Type: application/json
 `nickname`은 2~30자이며 앞뒤 공백은 제거됩니다. 기존 계정처럼 nickname이 없는 사용자는
 `/api/v1/users/me`에서 `nickname: null`로 응답할 수 있고, 프론트엔드는 email 앞부분으로
 안전하게 표시합니다. nickname은 아직 unique가 아니며, `/api/v1/users/me`에서 수정할 수 있습니다.
+회원가입 직후 `email_verified=false`로 생성되며, 백엔드는 인증 메일 발송을 시도합니다.
+기존 운영 사용자는 migration 후 일단 `email_verified=false`로 남을 수 있으므로 Settings에서
+인증 메일을 다시 보내 재인증할 수 있습니다.
+
+이메일 인증 링크는 프론트엔드의 `/verify-email?token=...`으로 연결됩니다. 토큰 원문은 DB에
+저장하지 않고 sha256 hash만 저장하며, 만료되거나 이미 사용된 토큰은 다시 사용할 수 없습니다.
+
+```http
+POST /api/v1/auth/verify-email
+Content-Type: application/json
+
+{
+  "token": "{email_verification_token}"
+}
+```
+
+로그인한 미인증 사용자는 인증 메일을 다시 요청할 수 있습니다.
+
+```http
+POST /api/v1/auth/resend-verification
+Authorization: Bearer {access_token}
+```
 
 2. 로그인 후 access/refresh token 받기
 
@@ -357,6 +412,8 @@ Content-Type: application/json
 GET  /api/v1/health
 POST /api/v1/auth/register
 POST /api/v1/auth/login
+POST /api/v1/auth/verify-email
+POST /api/v1/auth/resend-verification
 GET  /api/v1/users/me
 PATCH /api/v1/users/me
 PATCH /api/v1/users/me/password
@@ -384,7 +441,7 @@ DELETE /api/v1/routines/{routine_id}
 POST /api/v1/routines/{routine_id}/start-action
 ```
 
-`GET /api/v1/users/me` 응답에는 `id`, `email`, `nickname`, `created_at`, `updated_at`이 포함됩니다.
+`GET /api/v1/users/me` 응답에는 `id`, `email`, `nickname`, `email_verified`, `created_at`, `updated_at`이 포함됩니다.
 비밀번호 해시나 token secret은 응답하지 않습니다.
 `PATCH /api/v1/users/me`는 2~30자 nickname 수정만 지원하며, 저장 즉시 프론트 Topbar에 반영할 수 있습니다.
 `PATCH /api/v1/users/me/password`는 현재 비밀번호를 확인한 뒤 새 비밀번호로 교체합니다. 새 비밀번호도 8자 이상 + 문자/숫자 포함 정책을 따릅니다.
@@ -406,12 +463,14 @@ Routines는 본인 소유의 안전망 행동입니다. `POST /api/v1/routines/{
 - 다른 사용자의 리소스 접근은 `PERMISSION_DENIED` 계열 403 응답으로 처리합니다.
 - `ENVIRONMENT=production`에서 기본 `JWT_SECRET_KEY`를 그대로 쓰거나 `CORS_ORIGINS=*`를 설정하면 서버가 시작되지 않습니다.
 - OpenAI 내부 오류 원문은 사용자에게 그대로 노출하지 않고 rule-based fallback 또는 안전한 에러 코드로 처리합니다.
+- 이메일 인증 토큰 원문은 저장하지 않고 hash만 저장합니다. SMTP 비밀번호는 백엔드 `.env`에만 둡니다.
 
 운영 전 TODO:
 
 - refresh token을 httpOnly secure cookie로 전환
 - 서버 측 refresh token revoke/logout 저장소 도입
 - CSRF 정책 검토
+- 비밀번호 재설정 요청/토큰/메일 발송 flow 추가
 - 계정 삭제 기능 추가
 
 ## AI suggestion

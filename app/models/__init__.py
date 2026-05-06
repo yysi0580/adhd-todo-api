@@ -1,6 +1,7 @@
 from app.models.action import Action
 from app.models.ai_usage_log import AiUsageLog
 from app.models.brain_dump import BrainDump
+from app.models.email_verification_token import EmailVerificationToken
 from app.models.feedback import Feedback
 from app.models.routine import Routine
 from app.models.session import Session
@@ -11,6 +12,7 @@ __all__ = [
     "Action",
     "AiUsageLog",
     "BrainDump",
+    "EmailVerificationToken",
     "Feedback",
     "Routine",
     "Session",

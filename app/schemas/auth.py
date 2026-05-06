@@ -26,6 +26,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=256)
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
