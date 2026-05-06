@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.services.ai.exceptions import AIInvalidResponseError
+from app.services.ai.quality import hard_failures, validate_response_quality
 
 PRESSURE_WORDS = ("반드시 해야", "반드시", "무조건", "실패했다", "게으르", "실패", "성취율")
 
@@ -39,6 +40,13 @@ class AISuggestionResponse(BaseModel):
                     "AI 응답에 압박 표현이 포함되어 있습니다.",
                     code="AI_INVALID_RESPONSE",
                 )
+        quality_issues = validate_response_quality(self, feature_name=feature_name)
+        failures = hard_failures(quality_issues)
+        if failures:
+            raise AIInvalidResponseError(
+                "AI 응답이 품질 기준을 통과하지 못했습니다.",
+                code="AI_INVALID_RESPONSE",
+            )
         return self
 
 

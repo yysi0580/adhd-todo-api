@@ -9,7 +9,7 @@ from app.services.ai.exceptions import (
     AIServiceError,
     AITimeoutError,
 )
-from app.services.ai.prompts import AI_SUGGESTION_SYSTEM_PROMPT
+from app.services.ai.prompts import current_system_prompt
 from app.services.ai.schemas import AISuggestionResponse
 
 
@@ -42,7 +42,7 @@ class OpenAIResponsesClient:
             response = self.client.responses.parse(
                 model=self.model,
                 input=[
-                    {"role": "system", "content": AI_SUGGESTION_SYSTEM_PROMPT},
+                    {"role": "system", "content": current_system_prompt()},
                     {"role": "user", "content": user_input},
                 ],
                 text_format=AISuggestionResponse,

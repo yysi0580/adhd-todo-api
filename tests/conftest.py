@@ -52,12 +52,15 @@ def clear_in_memory_limits() -> Generator:
     settings = get_settings()
     original_ai_enabled = settings.ai_suggestion_enabled
     original_openai_key = settings.openai_api_key
+    original_prompt_version = settings.ai_prompt_version
     settings.ai_suggestion_enabled = False
     settings.openai_api_key = None
+    settings.ai_prompt_version = "v2"
     reset_limits()
     yield
     settings.ai_suggestion_enabled = original_ai_enabled
     settings.openai_api_key = original_openai_key
+    settings.ai_prompt_version = original_prompt_version
     reset_limits()
 
 

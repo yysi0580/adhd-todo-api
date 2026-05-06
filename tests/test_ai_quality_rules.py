@@ -13,12 +13,13 @@ PRESSURE_WORDS = ("실패", "게으름", "무조건", "반드시", "당장 끝�
 def test_ai_quality_fixture_prompts_are_stable():
     cases = json.loads(Path("tests/fixtures/ai_quality_cases.json").read_text(encoding="utf-8"))
 
-    assert len(cases) >= 7
+    assert len(cases) >= 10
     for case in cases:
         prompt = build_brain_dump_input(case["raw_text"])
-        assert "prompt_version: v1" in prompt
+        assert "prompt_version: v2" in prompt
         assert "생성 개수: 2~5" in prompt
         assert case["raw_text"] in prompt
+        assert case["expected_quality_notes"]
 
 
 def test_ai_response_quality_validator_rejects_pressure_language():

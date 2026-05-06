@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     ai_model: str = "gpt-4.1-mini"
     ai_timeout_seconds: float = 30
     ai_max_output_tokens: int = 700
-    ai_prompt_version: str = "v1"
+    ai_prompt_version: str = "v2"
     ai_rate_limit_per_user_per_minute: int = 10
     ai_rate_limit_per_user_per_day: int = 100
     ai_rate_limit_anonymous_per_ip_per_minute: int = 5

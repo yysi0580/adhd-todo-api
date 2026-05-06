@@ -13,6 +13,7 @@ from app.services.ai.exceptions import (
     AIRateLimitExceededError,
 )
 from app.services.ai.prompts import build_brain_dump_input, build_make_smaller_input
+from app.services.ai.quality import hard_failures, validate_make_smaller_quality
 from app.services.ai.rate_limit import ai_rate_limiter
 from app.services.ai.schemas import AISuggestionResponse, SuggestionCandidate
 from app.services.ai.usage_logger import AIUsageLog, ai_usage_logger
@@ -86,8 +87,14 @@ class AiSuggestionGenerator:
                 cache_key=self._cache_key("AI_SMALLER", user_id, cache_identity),
                 prompt=prompt,
             )
+            validated_response = response.validate_for_feature("make_smaller")
+            make_smaller_failures = hard_failures(
+                validate_make_smaller_quality(title, micro_step, validated_response)
+            )
+            if make_smaller_failures:
+                raise ValueError("AI make_smaller response failed quality validation")
             return self._normalize_candidates(
-                response.validate_for_feature("make_smaller").suggestions,
+                validated_response.suggestions,
                 limit=3,
                 generation_type=SuggestionGenerationType.smaller.value,
             )

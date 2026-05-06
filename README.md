@@ -183,7 +183,7 @@ AI_SUGGESTION_ENABLED=false
 AI_MODEL=gpt-4.1-mini
 AI_TIMEOUT_SECONDS=30
 AI_MAX_OUTPUT_TOKENS=700
-AI_PROMPT_VERSION=v1
+AI_PROMPT_VERSION=v2
 AI_RATE_LIMIT_PER_USER_PER_MINUTE=10
 AI_RATE_LIMIT_PER_USER_PER_DAY=100
 AI_RATE_LIMIT_ANONYMOUS_PER_IP_PER_MINUTE=5
@@ -449,6 +449,14 @@ AI 응답은 Structured Outputs 기반 JSON으로만 받습니다.
 
 AI는 사용자를 평가하거나 우선순위를 강요하지 않고, 사용자가 고를 수 있는 작은 행동 후보만 생성하도록 설계되어 있습니다. OpenAI API 오류, timeout, 비어 있는 응답, 유효하지 않은 structured output이 발생하면 API 요청은 실패하지 않고 rule-based generator로 fallback합니다. Suggestion 응답의 `source` 값은 `ai` 또는 `rule_based`입니다.
 
+Prompt version:
+
+- 현재 기본 prompt version은 `v2`입니다.
+- `v2`는 더 작은 시작 행동, 압박 표현 회피, 한 후보당 한 행동, `make_smaller` 품질 개선을 목표로 합니다.
+- prompt version은 AI cache key와 usage log에 포함됩니다.
+- prompt version을 바꾸면 기존 cache와 다른 key가 사용되고, usage log에 `v1`/`v2`가 함께 남을 수 있습니다. 이는 정상입니다.
+- AI 품질 기준은 `docs/ai-quality-guide.md`에 정리되어 있습니다.
+
 AI 비용 통제:
 
 - 로그인 사용자는 기본 분당 10회, 하루 100회로 AI 호출이 제한됩니다.
@@ -485,7 +493,7 @@ AI status 응답 예:
   "rateLimitEnabled": true,
   "budgetLimitEnabled": true,
   "fallback": "rule_based",
-  "promptVersion": "v1"
+  "promptVersion": "v2"
 }
 ```
 
@@ -530,7 +538,7 @@ GitHub Actions도 같은 검증을 실행합니다. 기본 CI에서는 `AI_SUGGE
 `RUN_REAL_AI_SMOKE=false`로 실제 OpenAI 호출이 발생하지 않습니다.
 
 테스트는 메모리 SQLite DB를 사용해서 로컬 개발 DB를 건드리지 않습니다. 현재 핵심 테스트에는 action 상세 조회, 타인 action 403, feedback `do` 응답의 `action` 포함 검증이 들어 있습니다.
-AI 테스트는 실제 OpenAI API를 호출하지 않고 mock client로 검증합니다. 현재 포함된 항목은 AI disabled/key missing fallback, AI success, invalid output fallback, make_smaller fallback, cache 재사용, rate limit, 비용 계산, key 하드코딩 방지입니다.
+AI 테스트는 실제 OpenAI API를 호출하지 않고 mock client와 품질 fixture로 검증합니다. 현재 포함된 항목은 AI disabled/key missing fallback, AI success, invalid output fallback, make_smaller fallback, cache 재사용, rate limit, 비용 계산, key 하드코딩 방지, 압박 표현/너무 큰 행동/나쁜 make_smaller 차단입니다.
 
 실제 OpenAI smoke test는 opt-in입니다. 기본 `pytest`에서는 실제 OpenAI 호출이 발생하지 않습니다.
 
@@ -569,7 +577,8 @@ MVP 안정화 시 아래 흐름을 반복 확인합니다.
 - AI 제한에 걸리면 사용자 흐름은 기본 제안기로 계속 진행되고, 내부 사용량 로그에는 제한 코드가 남습니다.
 - 비용 제한은 예상 token 비용 기준입니다. 실제 청구 금액과 차이가 날 수 있으니 운영 전 OpenAI pricing을 확인합니다.
 - 프론트엔드는 OpenAI를 직접 호출하지 않습니다. `OPENAI_API_KEY`는 백엔드 `.env` 또는 서버 환경변수에만 둡니다.
-- AI 품질 튜닝, prompt version 변경, 반복 실제 호출 평가는 비용이 발생할 수 있으므로 별도 작업으로 신중히 진행합니다. 기본 배포/CI/운영 체크에서는 실제 OpenAI 반복 호출을 하지 않습니다.
+- AI 품질 튜닝은 먼저 `docs/ai-quality-guide.md`, `tests/fixtures/ai_quality_cases.json`, validator 테스트로 검증합니다.
+- 반복 실제 호출 평가는 비용이 발생할 수 있으므로 별도 opt-in 작업으로 신중히 진행합니다. 기본 배포/CI/운영 체크에서는 실제 OpenAI 반복 호출을 하지 않습니다.
 
 ## 배포
 
