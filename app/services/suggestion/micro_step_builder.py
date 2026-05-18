@@ -16,7 +16,7 @@ def make_title(text: str) -> str:
 def make_micro_step(text: str) -> str:
     cleaned = text.strip()
     lowered = cleaned.lower()
-    if "발표" in cleaned and "자료" in cleaned:
+    if "발표" in cleaned and any(keyword in cleaned for keyword in ["자료", "준비"]):
         return "발표 자료 제목만 작성하기"
     if "교수" in cleaned and any(keyword in cleaned for keyword in ["메일", "email", "이메일"]):
         return "교수님께 질문 메일 초안 한 줄 쓰기"
