@@ -24,6 +24,7 @@ FastAPI 기반 ADHD 타깃 실행 보조 API입니다.
 - make_smaller: 부담스러운 suggestion을 1~3개의 더 작은 행동으로 재생성
 - Feedback: `do`, `snooze`, `pass`, `make_smaller`, `capture_only` 반응 저장
 - Action: 선택된 suggestion을 실행 상태로 전환하고 `complete` 또는 `abort`
+- Calendar: Action/manual 이벤트를 서버에 저장하고 `.ics`로 내보내 다른 캘린더 앱과 호환
 - History: 내 최근 session, brain dump, action, feedback 요약 조회
 - Routines: 제안이 막힐 때 다시 돌아올 수 있는 사용자별 안전망 행동 CRUD
 - Login protection: 비밀번호 정책, 로그인 실패 5회 차단, 주요 API rate limit
@@ -49,6 +50,7 @@ app/
         feedback.py
         ai.py
         routines.py
+        calendar.py
   core/
     config.py
     db.py
@@ -64,6 +66,7 @@ app/
     suggestion.py
     action.py
     feedback.py
+    calendar_event.py
     ai_usage_log.py
     routine.py
     email_verification_token.py
@@ -83,6 +86,7 @@ app/
     suggestion_repository.py
     action_repository.py
     feedback_repository.py
+    calendar_event_repository.py
     ai_usage_log_repository.py
     routine_repository.py
     email_verification_repository.py
@@ -106,6 +110,7 @@ app/
     action_service.py
     feedback_service.py
     history_service.py
+    calendar_service.py
     routine_service.py
     suggestion/
       ai_generator.py
@@ -439,6 +444,12 @@ POST /api/v1/routines
 PATCH /api/v1/routines/{routine_id}
 DELETE /api/v1/routines/{routine_id}
 POST /api/v1/routines/{routine_id}/start-action
+GET  /api/v1/calendar/events
+POST /api/v1/calendar/events
+GET  /api/v1/calendar/events/{event_id}
+PATCH /api/v1/calendar/events/{event_id}
+DELETE /api/v1/calendar/events/{event_id}
+GET  /api/v1/calendar/events.ics
 ```
 
 `GET /api/v1/users/me` 응답에는 `id`, `email`, `nickname`, `email_verified`, `created_at`, `updated_at`이 포함됩니다.
@@ -451,6 +462,8 @@ POST /api/v1/routines/{routine_id}/start-action
 
 Routines는 본인 소유의 안전망 행동입니다. `POST /api/v1/routines/{routine_id}/start-action`은 active routine을 바로 Action으로 전환합니다. inactive routine이나 다른 사용자의 routine은 시작할 수 없습니다.
 
+Calendar 이벤트도 `user_id` 기준으로 보호됩니다. `POST /api/v1/calendar/events`는 manual 이벤트를 만들 수 있고, `action_id`를 함께 보내면 해당 Action의 `title`과 `micro_step`을 기반으로 일정 블록을 만듭니다. `GET /api/v1/calendar/events.ics`는 Google Calendar, Apple Calendar, Outlook에서 가져올 수 있는 표준 iCalendar 파일을 반환합니다. 현재는 단방향 export 중심이며, Google/Outlook 양방향 OAuth 동기화는 Calendar Import 단계에서 별도로 다룹니다.
+
 ## 보안 정책
 
 - access token은 `ACCESS_TOKEN_EXPIRE_MINUTES` 설정에 따라 만료됩니다.
@@ -459,6 +472,7 @@ Routines는 본인 소유의 안전망 행동입니다. `POST /api/v1/routines/{
 - 로그인 실패가 5회 반복되면 기본 5분 동안 차단합니다.
 - login과 brain dump 생성에는 in-memory rate limit이 적용됩니다.
 - 모든 session, brain dump, suggestion, action, feedback은 `user_id` 기준으로 보호됩니다.
+- calendar event도 `user_id` 기준으로 보호되며 다른 사용자의 event/action으로 일정을 만들 수 없습니다.
 - routine도 `user_id` 기준으로 보호되며 다른 사용자의 routine 접근은 403입니다.
 - 다른 사용자의 리소스 접근은 `PERMISSION_DENIED` 계열 403 응답으로 처리합니다.
 - `ENVIRONMENT=production`에서 기본 `JWT_SECRET_KEY`를 그대로 쓰거나 `CORS_ORIGINS=*`를 설정하면 서버가 시작되지 않습니다.

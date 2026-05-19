@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -8,6 +9,9 @@ from app.domain.enums import ActionStatus
 from app.domain.time import utc_now
 from app.models.session import Session
 from app.models.user import User
+
+if TYPE_CHECKING:
+    from app.models.calendar_event import CalendarEvent
 
 
 class Action(Base):
@@ -31,3 +35,4 @@ class Action(Base):
 
     user: Mapped[User] = relationship(back_populates="actions")
     session: Mapped[Session] = relationship(back_populates="actions")
+    calendar_events: Mapped[list["CalendarEvent"]] = relationship(back_populates="action")
