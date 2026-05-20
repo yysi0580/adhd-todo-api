@@ -74,6 +74,25 @@ class PressureAiClient(FakeAiClient):
         )
 
 
+class IrrelevantAiClient(FakeAiClient):
+    def create_suggestions(self, user_input: str) -> AISuggestionResponse:
+        type(self).calls += 1
+        return AISuggestionResponse(
+            suggestions=[
+                SuggestionCandidate(
+                    title="메모장 열기",
+                    micro_step="휴대폰이나 컴퓨터에서 메모장 앱을 연다.",
+                    effort_level="quiet",
+                ),
+                SuggestionCandidate(
+                    title="주변 관찰하기",
+                    micro_step="주변에 있는 물건이나 소리를 1분간 살펴본다.",
+                    effort_level="gentle",
+                ),
+            ]
+        )
+
+
 @pytest.fixture(autouse=True)
 def restore_ai_settings():
     settings = get_settings()
@@ -278,6 +297,27 @@ def test_ai_pressure_language_falls_back_to_rule_based(
     assert all(
         suggestion["source"] == "rule_based" for suggestion in response.json()["suggestions"]
     )
+
+
+def test_ai_irrelevant_output_falls_back_to_rule_based(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    monkeypatch,
+):
+    _enable_ai(monkeypatch, IrrelevantAiClient)
+
+    response = client.post(
+        "/api/v1/brain-dumps",
+        headers=auth_headers,
+        json={"raw_text": "밥먹고 약먹고 알바갔다가 이력서10개 제출"},
+    )
+
+    assert response.status_code == 201
+    suggestions = response.json()["suggestions"]
+    assert all(suggestion["source"] == "rule_based" for suggestion in suggestions)
+    micro_steps = [suggestion["micro_step"] for suggestion in suggestions]
+    assert "약과 물을 먼저 꺼내기" in micro_steps
+    assert "이력서 파일 하나만 열기" in micro_steps
 
 
 def test_ai_cache_reuses_same_request(

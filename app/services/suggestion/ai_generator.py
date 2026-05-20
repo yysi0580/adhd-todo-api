@@ -1,4 +1,5 @@
 import logging
+import re
 
 from app.core.config import get_settings
 from app.domain.enums import SuggestionGenerationType, SuggestionSource
@@ -48,8 +49,10 @@ class AiSuggestionGenerator:
                 cache_key=self._cache_key("AI_SUGGESTION", user_id, prompt),
                 prompt=prompt,
             )
+            validated_response = response.validate_for_feature("brain_dump")
+            _validate_brain_dump_relevance(raw_text, validated_response)
             return self._normalize_candidates(
-                response.validate_for_feature("brain_dump").suggestions,
+                validated_response.suggestions,
                 limit=5,
                 generation_type=SuggestionGenerationType.original.value,
             )
@@ -320,3 +323,54 @@ class AiSuggestionGenerator:
         if len(normalized) < minimum:
             raise ValueError("AI returned too few valid suggestions")
         return normalized
+
+
+RELEVANCE_KEYWORDS = (
+    "밥",
+    "식사",
+    "약",
+    "복용",
+    "알바",
+    "출근",
+    "근무",
+    "이력서",
+    "지원서",
+    "자소서",
+    "메일",
+    "교수",
+    "팀",
+    "일정",
+    "발표",
+    "자료",
+    "병원",
+    "예약",
+    "운동",
+    "청소",
+    "방",
+    "전화",
+    "서류",
+)
+
+
+def _validate_brain_dump_relevance(raw_text: str, response: AISuggestionResponse) -> None:
+    keywords = _extract_relevance_keywords(raw_text)
+    if not keywords:
+        return
+
+    relevant_count = 0
+    for suggestion in response.suggestions:
+        combined = f"{suggestion.title} {suggestion.micro_step}"
+        if any(keyword in combined for keyword in keywords):
+            relevant_count += 1
+
+    minimum_relevant = max(1, min(2, len(response.suggestions)))
+    if relevant_count < minimum_relevant:
+        raise ValueError("AI response did not reflect the brain dump input")
+
+
+def _extract_relevance_keywords(raw_text: str) -> set[str]:
+    keywords = {keyword for keyword in RELEVANCE_KEYWORDS if keyword in raw_text}
+    for token in re.findall(r"[가-힣A-Za-z0-9]+", raw_text):
+        if len(token) >= 3:
+            keywords.add(token[:6])
+    return keywords
