@@ -8,6 +8,7 @@ from app.schemas.calendar_candidate import (
     CalendarCandidateFromSuggestions,
     CalendarCandidateRead,
     CalendarCandidateSchedule,
+    CalendarCandidateScheduleFromSuggestion,
     CalendarCandidateScheduleResponse,
 )
 from app.services.calendar_candidate_service import CalendarCandidateService
@@ -42,6 +43,27 @@ def create_calendar_candidates_from_suggestions(
     )
 
 
+@router.post("/from-suggestion/schedule", response_model=CalendarCandidateScheduleResponse)
+def schedule_calendar_candidate_from_suggestion(
+    payload: CalendarCandidateScheduleFromSuggestion,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    candidate, event = CalendarCandidateService(db).schedule_from_suggestion(
+        current_user.id,
+        session_id=payload.session_id,
+        suggestion_id=payload.suggestion_id,
+        start_at=payload.start_at,
+        end_at=payload.end_at,
+        timezone=payload.timezone,
+        location=payload.location,
+        placement_source=payload.placement_source,
+        is_locked=payload.is_locked,
+        user_note=payload.user_note,
+    )
+    return {"candidate": candidate, "event": event}
+
+
 @router.post("/{candidate_id}/schedule", response_model=CalendarCandidateScheduleResponse)
 def schedule_calendar_candidate(
     candidate_id: int,
@@ -56,5 +78,8 @@ def schedule_calendar_candidate(
         end_at=payload.end_at,
         timezone=payload.timezone,
         location=payload.location,
+        placement_source=payload.placement_source,
+        is_locked=payload.is_locked,
+        user_note=payload.user_note,
     )
     return {"candidate": candidate, "event": event}

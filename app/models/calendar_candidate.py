@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -38,6 +38,7 @@ class CalendarCandidate(Base):
         index=True,
         nullable=True,
     )
+    calendar_event_id: Mapped[int | None] = mapped_column(index=True, nullable=True)
     title: Mapped[str] = mapped_column(String(160))
     micro_step: Mapped[str] = mapped_column(Text)
     candidate_type: Mapped[str] = mapped_column(
@@ -57,6 +58,11 @@ class CalendarCandidate(Base):
         nullable=True,
     )
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    planned_start_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    planned_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     preferred_time_block: Mapped[str] = mapped_column(
         String(30),
         default=CalendarPreferredTimeBlock.anytime.value,
@@ -75,6 +81,10 @@ class CalendarCandidate(Base):
         default=CalendarCandidateStatus.proposed.value,
         index=True,
     )
+    placement_source: Mapped[str] = mapped_column(String(40), default="ai_suggested")
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    conflict_status: Mapped[str] = mapped_column(String(40), default="clear")
+    user_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     timezone: Mapped[str] = mapped_column(String(80), default="Asia/Seoul")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

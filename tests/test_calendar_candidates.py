@@ -49,8 +49,43 @@ def test_calendar_candidate_can_be_scheduled_as_event(
     assert response.status_code == 200
     body = response.json()
     assert body["candidate"]["status"] == "scheduled"
+    assert body["candidate"]["calendar_event_id"] == body["event"]["id"]
+    assert body["candidate"]["placement_source"] == "manual"
     assert body["event"]["title"] == candidate["title"]
     assert body["event"]["source"] == "calendar_candidate"
+    assert body["event"]["candidate_id"] == candidate["id"]
+
+
+def test_calendar_candidate_can_schedule_directly_from_suggestion(
+    client: TestClient,
+    auth_headers: dict[str, str],
+):
+    session_id = _create_brain_dump_with_suggestions(client, auth_headers)
+    suggestion = client.get(
+        f"/api/v1/sessions/{session_id}/suggestions",
+        headers=auth_headers,
+    ).json()[0]
+    start_at = datetime(2026, 5, 20, 9, 30, tzinfo=UTC)
+
+    response = client.post(
+        "/api/v1/calendar/candidates/from-suggestion/schedule",
+        headers=auth_headers,
+        json={
+            "session_id": session_id,
+            "suggestion_id": suggestion["id"],
+            "start_at": start_at.isoformat(),
+            "end_at": (start_at + timedelta(minutes=20)).isoformat(),
+            "placement_source": "calendar_cell",
+            "user_note": "placed from Today",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["candidate"]["suggestion_id"] == suggestion["id"]
+    assert body["candidate"]["placement_source"] == "calendar_cell"
+    assert body["candidate"]["user_note"] == "placed from Today"
+    assert body["event"]["candidate_id"] == body["candidate"]["id"]
 
 
 def test_calendar_candidate_rejects_other_user_session(

@@ -98,6 +98,9 @@ class CalendarCandidateService:
         end_at: datetime,
         timezone: str = "Asia/Seoul",
         location: str | None = None,
+        placement_source: str = "manual",
+        is_locked: bool = False,
+        user_note: str | None = None,
     ) -> tuple[CalendarCandidate, CalendarEvent]:
         candidate = self._require_candidate(user_id, candidate_id)
         if candidate.status == CalendarCandidateStatus.scheduled.value:
@@ -110,6 +113,7 @@ class CalendarCandidateService:
             user_id=user_id,
             session_id=candidate.session_id,
             action_id=candidate.action_id,
+            candidate_id=candidate.id,
             title=candidate.title,
             description=candidate.micro_step,
             start_at=start_at,
@@ -117,13 +121,62 @@ class CalendarCandidateService:
             timezone=timezone,
             location=location,
             source="calendar_candidate",
+            display_color="#C0E1D2",
+            is_soft_block=True,
         )
         candidate.status = CalendarCandidateStatus.scheduled.value
+        candidate.calendar_event_id = event.id
+        candidate.planned_start_at = start_at
+        candidate.planned_end_at = end_at
+        candidate.placement_source = placement_source
+        candidate.is_locked = is_locked
+        candidate.user_note = user_note
+        candidate.conflict_status = "clear"
         candidate.updated_at = utc_now()
         self.db.commit()
         self.db.refresh(candidate)
         self.db.refresh(event)
         return candidate, event
+
+    def schedule_from_suggestion(
+        self,
+        user_id: int,
+        session_id: int,
+        suggestion_id: int,
+        start_at: datetime,
+        end_at: datetime,
+        timezone: str = "Asia/Seoul",
+        location: str | None = None,
+        placement_source: str = "manual",
+        is_locked: bool = False,
+        user_note: str | None = None,
+    ) -> tuple[CalendarCandidate, CalendarEvent]:
+        suggestion = require_suggestion(self.db, user_id, suggestion_id)
+        if suggestion.session_id != session_id:
+            raise ValidationDomainError(
+                "Suggestion이 해당 세션에 속하지 않습니다.",
+                code="SUGGESTION_SESSION_MISMATCH",
+            )
+
+        existing = self.candidates.get_by_suggestion(user_id, suggestion_id)
+        if existing is None or existing.status == CalendarCandidateStatus.scheduled.value:
+            candidate = self._create_candidate_for_suggestion(user_id, suggestion)
+            self.db.commit()
+            self.db.refresh(candidate)
+        else:
+            candidate = existing
+
+        return self.schedule(
+            user_id=user_id,
+            candidate_id=candidate.id,
+            start_at=start_at,
+            end_at=end_at,
+            timezone=timezone,
+            location=location,
+            placement_source=placement_source,
+            is_locked=is_locked,
+            user_note=user_note,
+        )
 
     def _select_suggestions(
         self,

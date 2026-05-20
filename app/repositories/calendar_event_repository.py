@@ -37,12 +37,17 @@ class CalendarEventRepository:
         location: str | None = None,
         session_id: int | None = None,
         action_id: int | None = None,
+        candidate_id: int | None = None,
         source: str = "manual",
+        status: str = "scheduled",
+        display_color: str | None = None,
+        is_soft_block: bool = True,
     ) -> CalendarEvent:
         event = CalendarEvent(
             user_id=user_id,
             session_id=session_id,
             action_id=action_id,
+            candidate_id=candidate_id,
             title=title,
             description=description,
             start_at=start_at,
@@ -50,6 +55,9 @@ class CalendarEventRepository:
             timezone=timezone,
             location=location,
             source=source,
+            status=status,
+            display_color=display_color,
+            is_soft_block=is_soft_block,
         )
         self.db.add(event)
         self.db.flush()

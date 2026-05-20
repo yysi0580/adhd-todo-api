@@ -55,14 +55,20 @@ class CalendarCandidateRepository:
         reason: str | None = None,
         suggestion_id: int | None = None,
         action_id: int | None = None,
+        calendar_event_id: int | None = None,
         status: str = "proposed",
         timezone: str = "Asia/Seoul",
+        placement_source: str = "ai_suggested",
+        is_locked: bool = False,
+        conflict_status: str = "clear",
+        user_note: str | None = None,
     ) -> CalendarCandidate:
         candidate = CalendarCandidate(
             user_id=user_id,
             session_id=session_id,
             suggestion_id=suggestion_id,
             action_id=action_id,
+            calendar_event_id=calendar_event_id,
             title=title,
             micro_step=micro_step,
             candidate_type=candidate_type,
@@ -76,6 +82,10 @@ class CalendarCandidateRepository:
             reason=reason,
             status=status,
             timezone=timezone,
+            placement_source=placement_source,
+            is_locked=is_locked,
+            conflict_status=conflict_status,
+            user_note=user_note,
         )
         self.db.add(candidate)
         self.db.flush()

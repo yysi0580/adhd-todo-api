@@ -12,6 +12,7 @@ class CalendarEventCreate(BaseModel):
     location: str | None = Field(default=None, max_length=255)
     session_id: int | None = None
     action_id: int | None = None
+    candidate_id: int | None = None
     source: str = Field(default="manual", max_length=40)
 
     @field_validator("title", "description", "timezone", "location", "source", mode="before")
@@ -51,6 +52,7 @@ class CalendarEventRead(BaseModel):
     user_id: int
     session_id: int | None
     action_id: int | None
+    candidate_id: int | None
     title: str
     description: str | None
     start_at: datetime
@@ -58,6 +60,10 @@ class CalendarEventRead(BaseModel):
     timezone: str
     location: str | None
     source: str
+    status: str
+    display_color: str | None
+    is_soft_block: bool
+    reschedule_count: int
     external_uid: str | None
     provider: str | None
     external_id: str | None

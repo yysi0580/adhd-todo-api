@@ -76,6 +76,7 @@ def create_calendar_event(
         location=payload.location,
         session_id=payload.session_id,
         action_id=payload.action_id,
+        candidate_id=payload.candidate_id,
         source=payload.source,
     )
 

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session as DbSession
 from app.core.exceptions import NotFoundError, PermissionDeniedError, ValidationDomainError
 from app.domain.time import utc_now
 from app.models import CalendarEvent
+from app.repositories.calendar_candidate_repository import CalendarCandidateRepository
 from app.repositories.calendar_event_repository import CalendarEventRepository
 from app.services.common import require_action, require_session
 
@@ -34,11 +35,33 @@ class CalendarService:
         location: str | None = None,
         session_id: int | None = None,
         action_id: int | None = None,
+        candidate_id: int | None = None,
         source: str = "manual",
+        display_color: str | None = None,
+        is_soft_block: bool = True,
     ) -> CalendarEvent:
         self._validate_range(start_at, end_at)
         if session_id is not None:
             require_session(self.db, user_id=user_id, session_id=session_id)
+
+        if candidate_id is not None:
+            candidate = CalendarCandidateRepository(self.db).get(candidate_id)
+            if candidate is None:
+                raise NotFoundError(
+                    "캘린더 후보를 찾을 수 없습니다.",
+                    code="CALENDAR_CANDIDATE_NOT_FOUND",
+                )
+            if candidate.user_id != user_id:
+                raise PermissionDeniedError(
+                    "캘린더 후보 접근 권한이 없습니다.",
+                    code="CALENDAR_CANDIDATE_FORBIDDEN",
+                )
+            if session_id is not None and candidate.session_id != session_id:
+                raise ValidationDomainError(
+                    "캘린더 후보가 해당 세션에 속하지 않습니다.",
+                    code="CALENDAR_CANDIDATE_SESSION_MISMATCH",
+                )
+            session_id = session_id or candidate.session_id
 
         action = None
         if action_id is not None:
@@ -63,6 +86,7 @@ class CalendarService:
             user_id=user_id,
             session_id=session_id,
             action_id=action_id,
+            candidate_id=candidate_id,
             title=title,
             description=description,
             start_at=start_at,
@@ -70,6 +94,8 @@ class CalendarService:
             timezone=timezone,
             location=location,
             source=source,
+            display_color=display_color,
+            is_soft_block=is_soft_block,
         )
         event.external_uid = f"adhd-todo-event-{event.id}@yangtheory.site"
         self.db.commit()
