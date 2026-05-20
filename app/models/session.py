@@ -10,6 +10,7 @@ from app.domain.time import utc_now
 if TYPE_CHECKING:
     from app.models.action import Action
     from app.models.brain_dump import BrainDump
+    from app.models.calendar_candidate import CalendarCandidate
     from app.models.calendar_event import CalendarEvent
     from app.models.feedback import Feedback
     from app.models.suggestion import Suggestion
@@ -28,5 +29,6 @@ class Session(Base):
     brain_dumps: Mapped[list["BrainDump"]] = relationship(back_populates="session")
     suggestions: Mapped[list["Suggestion"]] = relationship(back_populates="session")
     actions: Mapped[list["Action"]] = relationship(back_populates="session")
+    calendar_candidates: Mapped[list["CalendarCandidate"]] = relationship(back_populates="session")
     calendar_events: Mapped[list["CalendarEvent"]] = relationship(back_populates="session")
     feedback: Mapped[list["Feedback"]] = relationship(back_populates="session")

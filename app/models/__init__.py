@@ -1,6 +1,7 @@
 from app.models.action import Action
 from app.models.ai_usage_log import AiUsageLog
 from app.models.brain_dump import BrainDump
+from app.models.calendar_candidate import CalendarCandidate
 from app.models.calendar_event import CalendarEvent
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.feedback import Feedback
@@ -13,6 +14,7 @@ __all__ = [
     "Action",
     "AiUsageLog",
     "BrainDump",
+    "CalendarCandidate",
     "CalendarEvent",
     "EmailVerificationToken",
     "Feedback",

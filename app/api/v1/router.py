@@ -6,6 +6,7 @@ from app.api.v1.endpoints import (
     auth,
     brain_dumps,
     calendar,
+    calendar_candidates,
     feedback,
     health,
     history,
@@ -27,4 +28,9 @@ api_router.include_router(actions.router, prefix="/actions", tags=["actions"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(routines.router, prefix="/routines", tags=["routines"])
 api_router.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
+api_router.include_router(
+    calendar_candidates.router,
+    prefix="/calendar/candidates",
+    tags=["calendar-candidates"],
+)
 api_router.include_router(feedback.router, prefix="/feedback", tags=["feedback"])

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -8,6 +9,9 @@ from app.domain.enums import SuggestionGenerationType, SuggestionSource
 from app.domain.time import utc_now
 from app.models.session import Session
 from app.models.user import User
+
+if TYPE_CHECKING:
+    from app.models.calendar_candidate import CalendarCandidate
 
 
 class Suggestion(Base):
@@ -37,3 +41,6 @@ class Suggestion(Base):
 
     user: Mapped[User] = relationship(back_populates="suggestions")
     session: Mapped[Session] = relationship(back_populates="suggestions")
+    calendar_candidates: Mapped[list["CalendarCandidate"]] = relationship(
+        back_populates="suggestion",
+    )
