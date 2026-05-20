@@ -1,6 +1,6 @@
 import re
 
-MIN_PART_LENGTH = 3
+MIN_PART_LENGTH = 2
 NOISE_WORDS = {
     "그리고",
     "또",
@@ -25,6 +25,10 @@ SPLIT_PATTERN = re.compile(
     |\s+하고\s+
     |(?<=\S)하고\s+
     |(?<=보내)고\s+
+    |갔다가\s+
+    |했다가\s+
+    |다가\s+
+    |(?<=[가-힣])고\s+
     |\s+plus\s+
     """,
     re.VERBOSE,

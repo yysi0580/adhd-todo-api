@@ -36,6 +36,25 @@ def test_rule_based_generator_splits_production_style_brain_dump():
     assert all(suggestion["generation_type"] == "original" for suggestion in suggestions)
 
 
+def test_rule_based_generator_splits_daily_life_brain_dump():
+    generator = RuleBasedSuggestionGenerator()
+    suggestions = generator.generate_micro_steps(
+        "\ubc25\uba39\uace0 \uc57d\uba39\uace0 "
+        "\uc54c\ubc14\uac14\ub2e4\uac00 \uc774\ub825\uc11c10\uac1c \uc81c\ucd9c"
+    )
+
+    micro_steps = [suggestion["micro_step"] for suggestion in suggestions]
+
+    assert "\uba39\uc744 \uac83 \ud55c \uac00\uc9c0\ub9cc \uc815\ud558\uae30" in micro_steps
+    assert "\uc57d\uacfc \ubb3c\uc744 \uba3c\uc800 \uaebc\ub0b4\uae30" in micro_steps
+    assert (
+        "\uc54c\ubc14 \uad00\ub828 \ub2e4\uc74c \uc77c\uc815 \ud558\ub098\ub9cc "
+        "\ud655\uc778\ud558\uae30" in micro_steps
+    )
+    assert "\uc774\ub825\uc11c \ud30c\uc77c \ud558\ub098\ub9cc \uc5f4\uae30" in micro_steps
+    assert all(suggestion["generation_type"] == "original" for suggestion in suggestions)
+
+
 def test_micro_step_builder_uses_keyword_specific_actions():
     mail_step = "교수님께 질문 메일 초안 한 줄 쓰기"
     long_title = "아주 긴 발표 자료 정리하고 팀 일정 공유하..."
